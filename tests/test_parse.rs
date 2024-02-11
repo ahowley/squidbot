@@ -1,8 +1,21 @@
 #[test]
 fn parse_foundry_chatlog() {
     let path_to_log = "../test_files/fnd_test_campaign.db";
-    let mut log = parse::parse_log(path_to_log);
+    let log = parse::parse_log(path_to_log);
 
-    let first_post = log.next().unwrap();
-    assert_eq!(first_post.id, "TeStId12345");
+    let posts: Vec<parse::Post> = log.collect();
+    assert_eq!(posts[0].id, "TeStId12345");
+    assert_eq!(posts[1].sender_name, "");
+    assert_eq!(posts.len(), 4);
+}
+
+#[test]
+fn parse_config() {
+    let path_to_config = "../test_files/test_config.json";
+    let config = parse::parse_config(path_to_config);
+
+    assert_eq!(
+        config.campaigns.get("Curse of Strahd").unwrap().log,
+        "r20_curse_of_strahd.html"
+    );
 }
