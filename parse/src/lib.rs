@@ -4,7 +4,7 @@ use parse_foundry::FoundryChatLog;
 use sqlx::types::chrono::{DateTime, FixedOffset};
 use std::{fs::File, io::Read, path::Path};
 
-mod parse_config;
+pub mod parse_config;
 mod parse_foundry;
 
 pub struct RollSingle {
