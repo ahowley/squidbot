@@ -146,7 +146,7 @@ impl<F: Read> Iterator for FoundryChatLog<F> {
                 None => return None,
             };
 
-            let post: PostRaw = match serde_json::from_str(&line) {
+            let post = match PostRaw::parse(&line) {
                 Ok(res) => res,
                 Err(_) => continue,
             };
