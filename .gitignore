@@ -10,5 +10,3 @@ config.json
 /target
 /dev
 /chatlogs
-/parse
-/bot
