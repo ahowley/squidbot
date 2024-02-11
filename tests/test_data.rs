@@ -7,7 +7,7 @@ async fn connect_to_test_db() {
 }
 
 #[async_std::test]
-async fn try_insert_pronouns() {
+async fn try_insert_autoincrementing() {
     let pool = data::get_connection_pool("../.env.test").await;
     let pronouns: Pronouns = "test/pronouns/for/database".into();
     let GeneratedIdTransaction(mut transaction, record_id) =
@@ -18,4 +18,32 @@ async fn try_insert_pronouns() {
         .unwrap();
 
     assert_eq!(record_id, retreived_id);
+}
+
+#[async_std::test]
+async fn fetch_values_autoincrementing() {
+    let pool = data::get_connection_pool("../.env.test").await;
+    let pronouns: Pronouns = "test/pronouns/for/database".into();
+    let GeneratedIdTransaction(mut transaction, record_id) =
+        pronouns.try_insert(&pool).await.unwrap();
+
+    let retrieved_pronouns = Pronouns::fetch_values(&mut *transaction, record_id)
+        .await
+        .unwrap();
+
+    assert_eq!(retrieved_pronouns[0], pronouns.subj);
+}
+
+#[async_std::test]
+async fn from_values_autoincrementing() {
+    let pool = data::get_connection_pool("../.env.test").await;
+    let pronouns: Pronouns = "test/pronouns/for/database".into();
+    let GeneratedIdTransaction(mut transaction, record_id) =
+        pronouns.try_insert(&pool).await.unwrap();
+    let retrieved_pronouns = Pronouns::fetch_values(&mut *transaction, record_id)
+        .await
+        .unwrap();
+    let new_pronouns = Pronouns::from_values(&retrieved_pronouns).await;
+
+    assert_eq!(new_pronouns.subj, pronouns.subj);
 }

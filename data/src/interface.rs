@@ -1,7 +1,19 @@
 use sqlx::{query, Executor, Pool, Postgres, Transaction};
 
 #[allow(async_fn_in_trait)]
-pub trait AutoIncrementedId<'a> {
+pub trait AutoIncrementedId<'a>
+where
+    Self: Sized,
+{
+    type Shape;
+
+    async fn from_values(values: &'a Self::Shape) -> Self;
+
+    async fn fetch_values<E: Executor<'a, Database = Postgres>>(
+        pool: E,
+        id: i32,
+    ) -> sqlx::Result<Self::Shape>;
+
     async fn fetch_id_by_values<E: Executor<'a, Database = Postgres>>(
         pool: E,
         values: &Self,
@@ -16,10 +28,10 @@ pub trait AutoIncrementedId<'a> {
 pub struct GeneratedIdTransaction<'a>(pub Transaction<'a, Postgres>, pub i32);
 
 pub struct Pronouns<'a> {
-    subj: &'a str,
-    obj: &'a str,
-    poss_pres: &'a str,
-    poss_past: &'a str,
+    pub subj: &'a str,
+    pub obj: &'a str,
+    pub poss_pres: &'a str,
+    pub poss_past: &'a str,
 }
 
 impl<'a> From<&'a str> for Pronouns<'a> {
@@ -40,6 +52,33 @@ impl<'a> From<&'a str> for Pronouns<'a> {
 }
 
 impl<'a> AutoIncrementedId<'a> for Pronouns<'a> {
+    type Shape = [String; 4];
+
+    async fn from_values(values: &'a Self::Shape) -> Self {
+        let [subj, obj, poss_pres, poss_past] = values;
+
+        Self {
+            subj,
+            obj,
+            poss_pres,
+            poss_past,
+        }
+    }
+
+    async fn fetch_values<E: Executor<'a, Database = Postgres>>(
+        pool: E,
+        id: i32,
+    ) -> sqlx::Result<Self::Shape> {
+        let record = query!(
+            r#"SELECT subj, obj, poss_pres, poss_past FROM pronouns WHERE id = $1"#,
+            id
+        )
+        .fetch_one(pool)
+        .await?;
+
+        Ok([record.subj, record.obj, record.poss_pres, record.poss_past])
+    }
+
     async fn fetch_id_by_values<E: Executor<'a, Database = Postgres>>(
         pool: E,
         values: &Self,
