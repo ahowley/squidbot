@@ -181,16 +181,11 @@ mod tests {
         let mut log = FoundryChatLog::new(mock_db_bytes);
         let first_post = log.next().unwrap();
 
-        let test_timestamp_ms = 1659763066302 / 1000;
-        let test_timestamp_ns: Result<u32, TryFromIntError> =
-            (1659763066302 as i64 % 1000).try_into();
-
         assert_eq!(first_post.id, "TeStId12345");
         assert_eq!(first_post.sender_name, "cool_guy 421");
         assert_eq!(
-            first_post.datetime,
-            DateTime::from_timestamp(test_timestamp_ms, test_timestamp_ns.unwrap() * 1_000_000)
-                .unwrap()
+            first_post.datetime.timestamp_nanos_opt().unwrap(),
+            1659763066302000000
         );
         assert_eq!(first_post.content_raw, "foobar!");
         assert_eq!(first_post.is_message, true);
