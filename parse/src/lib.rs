@@ -1,3 +1,4 @@
+use async_std::task::spawn_blocking;
 use parse_config::Config;
 use parse_foundry::FoundryChatLog;
 use sqlx::types::chrono::{DateTime, FixedOffset};
@@ -78,22 +79,30 @@ fn validate_and_open_file(
     ))
 }
 
-pub fn parse_config(path_to_config: &str) -> Config {
-    let path_to_config = Path::new(path_to_config);
-    let mut file = validate_and_open_file(path_to_config, None, Some("config"), Some("json"));
-    let mut config_json = String::new();
-    file.read_to_string(&mut config_json)
-        .expect("failed to read contents of config.json");
+pub async fn parse_config(path_to_config: String) -> Config {
+    let blocking_parse = spawn_blocking(move || {
+        let path_to_config = Path::new(&path_to_config);
+        let mut file = validate_and_open_file(path_to_config, None, Some("config"), Some("json"));
+        let mut config_json = String::new();
+        file.read_to_string(&mut config_json)
+            .expect("failed to read contents of config.json");
 
-    Config::parse(&config_json)
-        .expect("failed to parse config.json - see README or config.example.json for help")
+        Config::parse(&config_json)
+            .expect("failed to parse config.json - see README or config.example.json for help")
+    });
+
+    blocking_parse.await
 }
 
-pub fn parse_log(path_to_log: &str) -> Box<dyn ChatLog<File>> {
-    let path = Path::new(path_to_log);
+pub async fn parse_log(path_to_log: String) -> Box<dyn ChatLog<File>> {
+    let blocking_parse = spawn_blocking(move || {
+        let path = Path::new(&path_to_log);
 
-    let file = validate_and_open_file(path, Some("fnd_"), None, Some("db"));
-    let log = FoundryChatLog::new(file);
+        let file = validate_and_open_file(path, Some("fnd_"), None, Some("db"));
+        let log = FoundryChatLog::new(file);
 
-    Box::new(log)
+        Box::new(log)
+    });
+
+    blocking_parse.await
 }

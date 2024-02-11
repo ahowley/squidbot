@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS roll_single,
+roll,
+chat_message,
+post,
+alias,
+censor,
+sender,
+campaign,
+player,
+pronouns;

@@ -1,0 +1,84 @@
+ALTER DATABASE postgres
+SET TIMEZONE TO -6;
+
+CREATE TABLE IF NOT EXISTS pronouns (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  subj TEXT NOT NULL,
+  obj TEXT NOT NULL,
+  poss_pres TEXT NOT NULL,
+  poss_past TEXT NOT NULL,
+  UNIQUE(subj, obj, poss_pres, poss_past)
+);
+
+CREATE TABLE IF NOT EXISTS player (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  player_name TEXT UNIQUE NOT NULL,
+  pronouns_id integer NOT NULL REFERENCES pronouns
+);
+
+CREATE TABLE IF NOT EXISTS campaign (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  campaign_name TEXT UNIQUE NOT NULL,
+  dm_id INTEGER NOT NULL REFERENCES player
+);
+
+CREATE TABLE IF NOT EXISTS sender (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sender_name TEXT UNIQUE NOT NULL,
+  campaign_id INTEGER REFERENCES campaign,
+  is_censored BOOLEAN NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS censor (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  avoid_text TEXT UNIQUE NOT NULL,
+  player_id INTEGER REFERENCES player
+);
+
+CREATE TABLE IF NOT EXISTS alias (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sender_id integer NOT NULL REFERENCES sender,
+  player_id integer NOT NULL REFERENCES player,
+  UNIQUE(sender_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS post (
+  id TEXT UNIQUE PRIMARY KEY,
+  campaign_id integer REFERENCES campaign,
+  sender_id integer REFERENCES sender,
+  timestamp_sent TIMESTAMPTZ,
+  failed_parsing BOOLEAN DEFAULT FALSE NOT NULL,
+  content_raw TEXT NOT NULL,
+  CHECK (
+    (
+      failed_parsing
+      AND campaign_id IS NULL
+      AND sender_id IS NULL
+    )
+    OR (
+      NOT failed_parsing
+      AND campaign_id IS NOT NULL
+      AND sender_id IS NOT NULL
+    )
+  )
+);
+
+CREATE TABLE IF NOT EXISTS chat_message (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  post_id TEXT REFERENCES post NOT NULL,
+  content TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS roll (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  post_id TEXT REFERENCES post NOT NULL,
+  formula INTEGER NOT NULL,
+  outcome INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS roll_single (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  roll_id INTEGER REFERENCES roll NOT NULL,
+  faces TEXT NOT NULL,
+  outcome NUMERIC NOT NULL
+);
