@@ -1,7 +1,5 @@
 [workspace]
-name = "squidbot"
-version = "0.1.0"
-edition = "2021"
+resolver = "2"
 
 members = [
     "parse",
