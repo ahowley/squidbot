@@ -171,7 +171,6 @@ impl<F: Read> ChatLog<F> for FoundryChatLog<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::num::TryFromIntError;
 
     #[test]
     fn parse_message() {
