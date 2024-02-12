@@ -1,4 +1,4 @@
-use data::{AutoIncrementedId, GeneratedIdTransaction, Pronouns};
+use data::{GeneratedIdTransaction, Pronouns, ShapeInterface};
 
 #[async_std::test]
 async fn connect_to_test_db() {
