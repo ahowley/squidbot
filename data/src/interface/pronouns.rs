@@ -43,14 +43,19 @@ impl<'a> ShapeInterface<'a> for Pronouns<'a> {
         pool: E,
         id: i32,
     ) -> sqlx::Result<Self::Shape> {
-        let record = query!(
+        let pronouns = query!(
             r#"SELECT subj, obj, poss_pres, poss_past FROM pronouns WHERE id = $1"#,
             id
         )
         .fetch_one(pool)
         .await?;
 
-        Ok([record.subj, record.obj, record.poss_pres, record.poss_past])
+        Ok([
+            pronouns.subj,
+            pronouns.obj,
+            pronouns.poss_pres,
+            pronouns.poss_past,
+        ])
     }
 
     async fn fetch_id_by_values<E: Executor<'a, Database = Postgres>>(

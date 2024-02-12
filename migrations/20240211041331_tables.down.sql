@@ -6,5 +6,6 @@ alias,
 censor,
 sender,
 campaign,
+pronouns_map,
 player,
 pronouns;

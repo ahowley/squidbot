@@ -1,10 +1,8 @@
 pub use interface::*;
-pub use pronouns::*;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::env;
 
 mod interface;
-mod pronouns;
 
 async fn get_postgres_url() -> String {
     env::var("DATABASE_URL").expect("failed to load DATABASE_URL environment variable")
