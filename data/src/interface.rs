@@ -1,3 +1,4 @@
+pub use campaign::Campaign;
 pub use censor::Censor;
 use parse::parse_config::Config;
 pub use player::Player;
@@ -5,6 +6,7 @@ pub use pronouns::Pronouns;
 pub use pronouns_map::PronounsMap;
 use sqlx::{Pool, Postgres, Transaction};
 
+mod campaign;
 mod censor;
 mod player;
 mod pronouns;

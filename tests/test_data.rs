@@ -114,3 +114,27 @@ async fn pronouns_map_and_censor() {
     assert_eq!(censor_player_name, new_player_name);
     assert_eq!(avoid_text, censor_values[0]);
 }
+
+#[async_std::test]
+async fn campaign() {
+    use data::{Campaign, Player};
+
+    let pool = data::create_connection_pool("../.env.test").await;
+    let mut transaction = data::begin_transaction(&pool).await;
+
+    let player_name = "Bob".to_string();
+    let player = Player::from_values(&player_name).await;
+    player.fetch_or_insert_id(&mut transaction).await;
+
+    let campaign_values = ["Curse of Strahd".to_string(), player_name.clone()];
+    let campaign = Campaign::from_values(&campaign_values).await;
+    let campaign_id = campaign.fetch_or_insert_id(&mut transaction).await;
+    let [campaign_name, dm_name] = Campaign::try_fetch_values(&mut transaction, campaign_id)
+        .await
+        .unwrap();
+
+    transaction.rollback().await.unwrap();
+    assert_eq!(dm_name, player_name);
+    assert_eq!(campaign_name, campaign.campaign_name);
+    assert_eq!(campaign_name, campaign_values[0]);
+}
