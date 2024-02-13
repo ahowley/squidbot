@@ -1,50 +1,58 @@
-use data::{GeneratedIdTransaction, Player, Pronouns, ShapeInterface};
+use data::{IdInterface, ShapeInterface};
 
 #[async_std::test]
 async fn connect_to_test_db() {
-    let pool = data::get_connection_pool("../.env.test").await;
+    let pool = data::create_connection_pool("../.env.test").await;
     assert_eq!(pool.options().get_max_connections(), 5);
 }
 
 #[async_std::test]
 async fn pronouns_interface() {
-    let pool = data::get_connection_pool("../.env.test").await;
+    use data::Pronouns;
 
-    let pronouns: Pronouns = "test/pronouns/for/database".into();
-    let GeneratedIdTransaction(mut transaction, record_id) =
-        pronouns.try_insert(&pool).await.unwrap();
-    let retreived_id = Pronouns::fetch_id_by_values(&mut *transaction, &pronouns)
+    let pool = data::create_connection_pool("../.env.test").await;
+    let pronouns: Pronouns = "they/them/their/theirs".into();
+
+    let mut transaction = data::begin_transaction(&pool).await;
+    let inserted_id = pronouns.fetch_or_insert_id(&mut transaction).await;
+    let pronouns_id = pronouns.try_fetch_id(&mut *transaction).await.unwrap();
+    assert_eq!(inserted_id, pronouns_id);
+
+    let pronouns_values = Pronouns::try_fetch_values(&mut *transaction, pronouns_id)
         .await
         .unwrap();
-    assert_eq!(record_id, retreived_id);
+    let new_pronouns = Pronouns::from_values(&pronouns_values).await;
+    transaction.rollback().await.unwrap();
+    let mut transaction = data::begin_transaction(&pool).await;
+    let new_inserted_id = new_pronouns.fetch_or_insert_id(&mut transaction).await;
+    let new_fetched_id = new_pronouns.fetch_or_insert_id(&mut transaction).await;
+    transaction.rollback().await.unwrap();
 
-    let retrieved_pronouns = Pronouns::fetch_values(&mut *transaction, record_id)
-        .await
-        .unwrap();
-    assert_eq!(retrieved_pronouns[0], pronouns.subj);
-
-    let new_pronouns = Pronouns::from_values(&retrieved_pronouns).await;
     assert_eq!(new_pronouns.subj, pronouns.subj);
+    assert_eq!(new_pronouns.obj, pronouns.obj);
+    assert_eq!(new_pronouns.poss_pres, pronouns.poss_pres);
+    assert_eq!(new_pronouns.poss_past, pronouns.poss_past);
+    assert_eq!(new_inserted_id, new_fetched_id);
 }
 
 #[async_std::test]
-async fn player_table() {
-    let pool = data::get_connection_pool("../.env.test").await;
+async fn player_interface() {
+    use data::Player;
 
-    let player_values = "Bob".to_string();
-    let player = Player::from_values(&player_values).await;
-    let GeneratedIdTransaction(mut transaction, record_id) =
-        player.try_insert(&pool).await.unwrap();
-    let retreived_id = Player::fetch_id_by_values(&mut *transaction, &player)
+    let pool = data::create_connection_pool("../.env.test").await;
+    let player_name = "Bob".to_string();
+    let player: Player = Player::from_values(&player_name).await;
+    assert_eq!(player.player_name, player_name);
+
+    let mut transaction = data::begin_transaction(&pool).await;
+    let inserted_id = player.fetch_or_insert_id(&mut transaction).await;
+    let fetched_id = player.fetch_or_insert_id(&mut transaction).await;
+    let player_id = player.try_fetch_id(&mut *transaction).await.unwrap();
+    assert_eq!(inserted_id, fetched_id);
+    assert_eq!(inserted_id, player_id);
+
+    let player_values = Player::try_fetch_values(&mut *transaction, player_id)
         .await
         .unwrap();
-    assert_eq!(record_id, retreived_id);
-
-    let retrieved_player = Player::fetch_values(&mut *transaction, record_id)
-        .await
-        .unwrap();
-    assert_eq!(player.player_name, retrieved_player);
-
-    let new_player = Player::from_values(&retrieved_player).await;
-    assert_eq!(new_player.player_name, player.player_name);
+    assert_eq!(player_values, player_name);
 }

@@ -1,5 +1,5 @@
-pub use player::*;
-pub use pronouns::*;
+pub use player::Player;
+pub use pronouns::Pronouns;
 use sqlx::{Executor, Pool, Postgres, Transaction};
 
 mod player;
@@ -12,22 +12,33 @@ where
 {
     type Shape;
 
-    async fn from_values(values: &'a Self::Shape) -> Self;
+    async fn from_values(value: &'a Self::Shape) -> Self;
 
-    async fn fetch_values<E: Executor<'a, Database = Postgres>>(
+    async fn try_fetch_values<E: Executor<'a, Database = Postgres>>(
         pool: E,
         id: i32,
     ) -> sqlx::Result<Self::Shape>;
+}
 
-    async fn fetch_id_by_values<E: Executor<'a, Database = Postgres>>(
+#[allow(async_fn_in_trait)]
+pub trait IdInterface<'a> {
+    type IdType;
+
+    async fn try_fetch_id<E: Executor<'a, Database = Postgres>>(
+        &self,
         pool: E,
-        values: &Self,
-    ) -> sqlx::Result<i32>;
+    ) -> sqlx::Result<Self::IdType>;
 
     async fn try_insert(
         &self,
-        pool: &'a Pool<Postgres>,
-    ) -> sqlx::Result<GeneratedIdTransaction<'a>>;
+        transaction: &mut Transaction<'a, Postgres>,
+    ) -> sqlx::Result<Self::IdType>;
+
+    async fn fetch_or_insert_id(&self, transaction: &mut Transaction<'a, Postgres>)
+        -> Self::IdType;
 }
 
-pub struct GeneratedIdTransaction<'a>(pub Transaction<'a, Postgres>, pub i32);
+#[allow(async_fn_in_trait)]
+pub trait UpdatableInterface<'a>: IdInterface<'a> {
+    async fn insert_or_update(&self, pool: &'a Pool<Postgres>) -> Self::IdType;
+}

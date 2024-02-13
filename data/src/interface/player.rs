@@ -1,5 +1,5 @@
-use crate::{GeneratedIdTransaction, ShapeInterface};
-use sqlx::{query, Executor, Pool, Postgres};
+use super::{IdInterface, ShapeInterface};
+use sqlx::{query, Executor, Postgres, Transaction};
 
 pub struct Player<'a> {
     pub player_name: &'a str,
@@ -8,11 +8,11 @@ pub struct Player<'a> {
 impl<'a> ShapeInterface<'a> for Player<'a> {
     type Shape = String;
 
-    async fn from_values(name: &'a Self::Shape) -> Self {
-        Player { player_name: name }
+    async fn from_values(name: &'a String) -> Self {
+        Player { player_name: &name }
     }
 
-    async fn fetch_values<E: Executor<'a, Database = Postgres>>(
+    async fn try_fetch_values<E: Executor<'a, Database = Postgres>>(
         pool: E,
         id: i32,
     ) -> sqlx::Result<Self::Shape> {
@@ -23,14 +23,18 @@ impl<'a> ShapeInterface<'a> for Player<'a> {
 
         Ok(player_name)
     }
+}
 
-    async fn fetch_id_by_values<E: Executor<'a, Database = Postgres>>(
+impl<'a> IdInterface<'a> for Player<'a> {
+    type IdType = i32;
+
+    async fn try_fetch_id<E: Executor<'a, Database = Postgres>>(
+        &self,
         pool: E,
-        values: &Self,
-    ) -> sqlx::Result<i32> {
+    ) -> sqlx::Result<Self::IdType> {
         let id = query!(
             r#"SELECT id FROM player WHERE player_name = $1"#,
-            values.player_name
+            self.player_name,
         )
         .fetch_one(pool)
         .await?
@@ -41,18 +45,35 @@ impl<'a> ShapeInterface<'a> for Player<'a> {
 
     async fn try_insert(
         &self,
-        pool: &'a Pool<Postgres>,
-    ) -> sqlx::Result<GeneratedIdTransaction<'a>> {
-        let mut transaction = pool.begin().await?;
-
+        transaction: &mut Transaction<'a, Postgres>,
+    ) -> sqlx::Result<Self::IdType> {
         let id = query!(
-            r#"INSERT INTO player (player_name) VALUES ( $1 ) RETURNING id"#,
+            r#"INSERT INTO player (player_name)
+            VALUES ( $1 )
+            ON CONFLICT DO NOTHING
+            RETURNING id
+            "#,
             self.player_name
         )
-        .fetch_one(&mut *transaction)
+        .fetch_one(&mut **transaction)
         .await?
         .id;
 
-        Ok(GeneratedIdTransaction(transaction, id))
+        Ok(id)
+    }
+
+    async fn fetch_or_insert_id(
+        &self,
+        transaction: &mut Transaction<'a, Postgres>,
+    ) -> Self::IdType {
+        if let Ok(id) = self.try_fetch_id(&mut **transaction).await {
+            return id;
+        }
+
+        let id = self
+            .try_insert(&mut *transaction)
+            .await
+            .expect("failed to insert new pronouns record");
+        id
     }
 }
