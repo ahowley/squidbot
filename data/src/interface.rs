@@ -1,3 +1,4 @@
+use parse::parse_config::Config;
 pub use player::Player;
 pub use pronouns::Pronouns;
 pub use pronouns_map::PronounsMap;
@@ -43,6 +44,10 @@ pub trait IdInterface<'a, 'tr> {
 }
 
 #[allow(async_fn_in_trait)]
-pub trait UpdatableInterface<'a, 'tr>: IdInterface<'a, 'tr> {
-    async fn insert_or_update(&self, pool: &'a Pool<Postgres>) -> Self::IdType;
+pub trait ConfigBoundInterface<'a, 'tr>: IdInterface<'a, 'tr> {
+    async fn update_if_config_changed(
+        &self,
+        pool: &'a Pool<Postgres>,
+        config: &Config,
+    ) -> Self::IdType;
 }
