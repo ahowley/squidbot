@@ -1,5 +1,5 @@
 use super::{IdInterface, ShapeInterface};
-use sqlx::{query, Executor, Postgres, Transaction};
+use sqlx::{query, Postgres, Transaction};
 
 pub struct Pronouns<'a> {
     pub subj: &'a str,
@@ -16,7 +16,7 @@ impl<'a> From<&'a str> for Pronouns<'a> {
             panic!("player pronouns incorrectly configured - see config.example.json for example of how to format player pronouns");
         };
 
-        Pronouns {
+        Self {
             subj,
             obj,
             poss_pres,
@@ -25,7 +25,7 @@ impl<'a> From<&'a str> for Pronouns<'a> {
     }
 }
 
-impl<'a> ShapeInterface<'a> for Pronouns<'a> {
+impl<'a, 'tr> ShapeInterface<'a, 'tr> for Pronouns<'a> {
     type Shape = [String; 4];
 
     async fn from_values(pronouns_array: &'a Self::Shape) -> Self {
@@ -39,15 +39,15 @@ impl<'a> ShapeInterface<'a> for Pronouns<'a> {
         }
     }
 
-    async fn try_fetch_values<E: Executor<'a, Database = Postgres>>(
-        pool: E,
+    async fn try_fetch_values(
+        transaction: &'a mut Transaction<'tr, Postgres>,
         id: i32,
     ) -> sqlx::Result<Self::Shape> {
         let pronouns = query!(
             r#"SELECT subj, obj, poss_pres, poss_past FROM pronouns WHERE id = $1"#,
             id
         )
-        .fetch_one(pool)
+        .fetch_one(&mut **transaction)
         .await?;
 
         Ok([
@@ -59,12 +59,12 @@ impl<'a> ShapeInterface<'a> for Pronouns<'a> {
     }
 }
 
-impl<'a> IdInterface<'a> for Pronouns<'a> {
+impl<'a, 'tr> IdInterface<'a, 'tr> for Pronouns<'a> {
     type IdType = i32;
 
-    async fn try_fetch_id<E: Executor<'a, Database = Postgres>>(
+    async fn try_fetch_id(
         &self,
-        pool: E,
+        transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
             r#"SELECT id FROM pronouns WHERE subj = $1 AND obj = $2 AND poss_pres = $3 AND poss_past = $4"#,
@@ -72,14 +72,14 @@ impl<'a> IdInterface<'a> for Pronouns<'a> {
             self.obj,
             self.poss_pres,
             self.poss_past
-        ).fetch_one(pool).await?.id;
+        ).fetch_one(&mut **transaction).await?.id;
 
         Ok(id)
     }
 
     async fn try_insert(
         &self,
-        transaction: &mut Transaction<'a, Postgres>,
+        transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
             r#"INSERT INTO pronouns (subj, obj, poss_pres, poss_past)
@@ -101,17 +101,15 @@ impl<'a> IdInterface<'a> for Pronouns<'a> {
 
     async fn fetch_or_insert_id(
         &self,
-        transaction: &mut Transaction<'a, Postgres>,
+        transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> Self::IdType {
-        if let Ok(id) = self.try_fetch_id(&mut **transaction).await {
+        if let Ok(id) = self.try_fetch_id(&mut *transaction).await {
             return id;
         }
 
-        let id = self
-            .try_insert(&mut *transaction)
+        self.try_insert(&mut *transaction)
             .await
-            .expect("failed to insert new pronouns record");
-        id
+            .expect("failed to insert new pronouns record")
     }
 }
 
