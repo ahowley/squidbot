@@ -16,7 +16,6 @@ async fn pronouns() {
     let mut transaction = data::begin_transaction(&pool).await;
     let inserted_id = pronouns.fetch_or_insert_id(&mut transaction).await;
     let pronouns_id = pronouns.try_fetch_id(&mut transaction).await.unwrap();
-    assert_eq!(inserted_id, pronouns_id);
 
     let pronouns_values = Pronouns::try_fetch_values(&mut transaction, pronouns_id)
         .await
@@ -26,6 +25,7 @@ async fn pronouns() {
     let new_fetched_id = new_pronouns.fetch_or_insert_id(&mut transaction).await;
     transaction.rollback().await.unwrap();
 
+    assert_eq!(inserted_id, pronouns_id);
     assert_eq!(new_pronouns.subj, pronouns.subj);
     assert_eq!(new_pronouns.obj, pronouns.obj);
     assert_eq!(new_pronouns.poss_pres, pronouns.poss_pres);
@@ -40,25 +40,26 @@ async fn player() {
     let pool = data::create_connection_pool("../.env.test").await;
     let player_name = "Bob".to_string();
     let player: Player = Player::from_values(&player_name).await;
-    assert_eq!(player.player_name, player_name);
 
     let mut transaction = data::begin_transaction(&pool).await;
     let inserted_id = player.fetch_or_insert_id(&mut transaction).await;
     let fetched_id = player.fetch_or_insert_id(&mut transaction).await;
     let player_id = player.try_fetch_id(&mut transaction).await.unwrap();
-    assert_eq!(inserted_id, fetched_id);
-    assert_eq!(inserted_id, player_id);
 
     let player_values = Player::try_fetch_values(&mut transaction, player_id)
         .await
         .unwrap();
+
     transaction.rollback().await.unwrap();
+    assert_eq!(player.player_name, player_name);
+    assert_eq!(inserted_id, fetched_id);
+    assert_eq!(inserted_id, player_id);
     assert_eq!(player_values, player_name);
 }
 
 #[async_std::test]
-async fn pronouns_map() {
-    use data::{Player, Pronouns, PronounsMap};
+async fn pronouns_map_and_censor() {
+    use data::{Censor, Player, Pronouns, PronounsMap};
 
     let pool = data::create_connection_pool("../.env.test").await;
 
@@ -68,7 +69,9 @@ async fn pronouns_map() {
 
     let mut transaction = data::begin_transaction(&pool).await;
     let pronouns_id = pronouns.fetch_or_insert_id(&mut transaction).await;
-    player.fetch_or_insert_id(&mut transaction).await;
+    let dupe_pronouns_id = pronouns.fetch_or_insert_id(&mut transaction).await;
+    let player_id = player.fetch_or_insert_id(&mut transaction).await;
+    let dupe_player_id = player.fetch_or_insert_id(&mut transaction).await;
 
     let pronouns_values = Pronouns::try_fetch_values(&mut transaction, pronouns_id)
         .await
@@ -76,12 +79,27 @@ async fn pronouns_map() {
     let pronouns_map_values = (pronouns_values, player_name.clone());
     let pronouns_map = PronounsMap::from_values(&pronouns_map_values).await;
     let pronouns_map_id = pronouns_map.fetch_or_insert_id(&mut transaction).await;
+    let dupe_pronouns_map_id = pronouns_map.fetch_or_insert_id(&mut transaction).await;
 
     let (new_pronouns_values, new_player_name) =
         PronounsMap::try_fetch_values(&mut transaction, pronouns_map_id)
             .await
             .unwrap();
+
+    let censor_values = ["Test Deadname".to_string(), player_name.clone()];
+    let censor = Censor::from_values(&censor_values).await;
+    let censor_id = censor.fetch_or_insert_id(&mut transaction).await;
+    let dupe_censor_id = censor.fetch_or_insert_id(&mut transaction).await;
+    let [avoid_text, censor_player_name] = Censor::try_fetch_values(&mut transaction, censor_id)
+        .await
+        .unwrap();
+
     transaction.rollback().await.unwrap();
+    assert_eq!(pronouns_id, dupe_pronouns_id);
+    assert_eq!(player_id, dupe_player_id);
+    assert_eq!(pronouns_map_id, dupe_pronouns_map_id);
+    assert_eq!(censor_id, dupe_censor_id);
+
     assert_eq!(new_player_name, player.player_name);
     assert_eq!(
         new_pronouns_values,
@@ -92,4 +110,7 @@ async fn pronouns_map() {
             pronouns.poss_past
         ]
     );
+
+    assert_eq!(censor_player_name, new_player_name);
+    assert_eq!(avoid_text, censor_values[0]);
 }
