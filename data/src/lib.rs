@@ -1,5 +1,6 @@
 pub use interface::*;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Transaction};
+use parse::parse_config::PlayerConfig;
+use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
 use std::env;
 
 mod interface;
@@ -24,4 +25,81 @@ pub async fn begin_transaction<'a>(pool: &'a Pool<Postgres>) -> Transaction<'a, 
     pool.begin()
         .await
         .expect("failed to initiate database transaction")
+}
+
+async fn update_player_from_config<'a, 'tr>(
+    transaction: &'a mut Transaction<'tr, Postgres>,
+    player_name: &String,
+    player_config: PlayerConfig,
+) -> i32 {
+    let player = Player::from_values(player_name).await;
+    let player_id = player.fetch_or_insert_id(&mut *transaction).await;
+
+    let mut valid_pronouns_maps: Vec<i32> = vec![];
+    for pronouns_string in player_config.pronouns {
+        let pronouns: Pronouns = pronouns_string[..].into();
+        let pronouns_id = pronouns.fetch_or_insert_id(&mut *transaction).await;
+        let pronouns_values = Pronouns::try_fetch_values(&mut *transaction, pronouns_id)
+            .await
+            .expect("failed to fetch just-inserted pronouns record");
+
+        let pronouns_map_values = (pronouns_values, player_name.clone());
+        let pronouns_map = PronounsMap::from_values(&pronouns_map_values).await;
+        let pronouns_map_id = pronouns_map.fetch_or_insert_id(&mut *transaction).await;
+        valid_pronouns_maps.push(pronouns_map_id);
+    }
+
+    let mut valid_censors: Vec<i32> = vec![];
+    for deadname in player_config.deadnames {
+        let censor_values = [deadname, player_name.clone()];
+        let censor = Censor::from_values(&censor_values).await;
+        let censor_id = censor.fetch_or_insert_id(&mut *transaction).await;
+        valid_censors.push(censor_id);
+    }
+
+    let player_pronouns_maps = query!(
+        r#"SELECT pronouns_map.id
+        FROM pronouns_map
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        player_name
+    )
+    .fetch_all(&mut **transaction)
+    .await
+    .expect("failed to fetch player pronouns from database");
+
+    let player_censors = query!(
+        r#"SELECT censor.id
+        FROM censor
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        player_name
+    )
+    .fetch_all(&mut **transaction)
+    .await
+    .expect("failed to fetch censors for player from database");
+
+    for pronouns_map in player_pronouns_maps {
+        let map_id = pronouns_map.id;
+        if !valid_pronouns_maps.contains(&map_id) {
+            query!(r#"DELETE FROM pronouns_map WHERE id = $1"#, map_id)
+                .execute(&mut **transaction)
+                .await
+                .expect("failed to prune pronouns_map");
+        }
+    }
+
+    for censor in player_censors {
+        let censor_id = censor.id;
+        if !valid_censors.contains(&censor_id) {
+            query!(r#"DELETE FROM censor WHERE id = $1"#, censor_id)
+                .execute(&mut **transaction)
+                .await
+                .expect("failed to prune censors");
+        }
+    }
+
+    player_id
 }

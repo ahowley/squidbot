@@ -46,12 +46,3 @@ pub trait IdInterface<'a, 'tr> {
         transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> Self::IdType;
 }
-
-#[allow(async_fn_in_trait)]
-pub trait ConfigBoundInterface<'a, 'tr>: IdInterface<'a, 'tr> {
-    async fn update_if_config_changed(
-        &self,
-        pool: &'a Pool<Postgres>,
-        config: &Config,
-    ) -> Self::IdType;
-}
