@@ -50,7 +50,6 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Player<'a> {
         let id = query!(
             r#"INSERT INTO player (player_name)
             VALUES ( $1 )
-            ON CONFLICT DO NOTHING
             RETURNING id
             "#,
             self.player_name

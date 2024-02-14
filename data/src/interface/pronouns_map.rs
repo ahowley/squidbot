@@ -20,16 +20,16 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for PronounsMap {
         transaction: &'a mut Transaction<'tr, Postgres>,
         id: i32,
     ) -> sqlx::Result<Self::Shape> {
-        let joined = query!(
+        let values = query!(
             r#"SELECT pronouns_id, player_id
             FROM pronouns_map
-            WHERE pronouns_map.id = $1"#,
+            WHERE id = $1"#,
             id
         )
         .fetch_one(&mut **transaction)
         .await?;
 
-        Ok([joined.pronouns_id, joined.player_id])
+        Ok([values.pronouns_id, values.player_id])
     }
 }
 
@@ -41,7 +41,7 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for PronounsMap {
         transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
-            r#"SELECT pronouns_map.id FROM pronouns_map
+            r#"SELECT id FROM pronouns_map
             WHERE pronouns_id = $1 AND player_id = $2"#,
             self.pronouns_id,
             self.player_id
@@ -60,7 +60,6 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for PronounsMap {
         let id = query!(
             r#"INSERT INTO pronouns_map (pronouns_id, player_id)
             VALUES ( $1, $2 )
-            ON CONFLICT DO NOTHING
             RETURNING id
             "#,
             self.pronouns_id,

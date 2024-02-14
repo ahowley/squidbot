@@ -20,16 +20,16 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Censor<'a> {
         transaction: &'a mut Transaction<'tr, Postgres>,
         id: i32,
     ) -> sqlx::Result<Self::Shape> {
-        let joined = query!(
+        let values = query!(
             r#"SELECT avoid_text, player_id
             FROM censor
-            WHERE censor.id = $1"#,
+            WHERE id = $1"#,
             id
         )
         .fetch_one(&mut **transaction)
         .await?;
 
-        Ok((joined.avoid_text, joined.player_id))
+        Ok((values.avoid_text, values.player_id))
     }
 }
 
@@ -41,7 +41,7 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Censor<'a> {
         transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
-            r#"SELECT censor.id FROM censor
+            r#"SELECT id FROM censor
             WHERE avoid_text = $1 AND player_id = $2"#,
             self.avoid_text,
             self.player_id,
@@ -60,7 +60,6 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Censor<'a> {
         let id = query!(
             r#"INSERT INTO censor (avoid_text, player_id)
             VALUES ( $1, $2 )
-            ON CONFLICT DO NOTHING
             RETURNING id"#,
             self.avoid_text,
             self.player_id

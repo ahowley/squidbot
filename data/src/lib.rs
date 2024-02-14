@@ -104,8 +104,43 @@ pub async fn update_players<'a, 'tr>(
     transaction: &'a mut Transaction<'tr, Postgres>,
     config: &Config,
 ) {
-    let players = &config.players;
-    for (player_name, player_config) in players {
-        update_player_from_config(&mut *transaction, player_name, player_config).await;
+    let current_players = &config.players;
+
+    let mut valid_players: Vec<i32> = vec![];
+    for (player_name, player_config) in current_players {
+        let player_id =
+            update_player_from_config(&mut *transaction, player_name, player_config).await;
+        valid_players.push(player_id);
+    }
+
+    let all_players = query!(
+        r#"SELECT id
+        FROM player"#
+    )
+    .fetch_all(&mut **transaction)
+    .await
+    .expect("failed to fetch player ids from database");
+
+    for player in all_players {
+        let player_id = player.id;
+        if !valid_players.contains(&player_id) {
+            query!(
+                r#"DELETE FROM pronouns_map
+                WHERE player_id = $1"#,
+                player_id
+            )
+            .execute(&mut **transaction)
+            .await
+            .expect("failed to prune pronouns_map for stale player data");
+
+            query!(
+                r#"DELETE FROM player
+                WHERE id = $1"#,
+                player_id
+            )
+            .execute(&mut **transaction)
+            .await
+            .expect("failed to prune players");
+        }
     }
 }

@@ -1,15 +1,19 @@
+pub use alias::Alias;
 pub use campaign::Campaign;
 pub use censor::Censor;
 pub use player::Player;
 pub use pronouns::Pronouns;
 pub use pronouns_map::PronounsMap;
+pub use sender::Sender;
 use sqlx::{Postgres, Transaction};
 
+mod alias;
 mod campaign;
 mod censor;
 mod player;
 mod pronouns;
 mod pronouns_map;
+mod sender;
 
 #[allow(async_fn_in_trait)]
 pub trait ShapeInterface<'a, 'tr>

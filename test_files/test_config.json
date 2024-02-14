@@ -11,6 +11,10 @@
     "Sally": {
       "pronouns": ["she/her/her/hers"],
       "deadnames": [""]
+    },
+    "Extra Player": {
+      "pronouns": ["she/her/her/hers"],
+      "deadnames": [""]
     }
   },
   "replace_all_deadnames_with": ":)",

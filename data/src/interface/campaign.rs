@@ -67,25 +67,47 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Campaign<'a> {
         &self,
         transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
-        let id = query!(
+        let try_id = query!(
             r#"INSERT INTO campaign (campaign_name, dm_id, timezone_offset)
             SELECT $1 as campaign_name, (
                 SELECT id
                 FROM player
                 WHERE player_name = $2
-            ) as player_id,
+            ) as dm_id,
             $3 as timezone_offset
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (campaign_name) DO NOTHING
             RETURNING id"#,
             self.campaign_name,
             self.dm_name,
             self.timezone_offset,
         )
         .fetch_one(&mut **transaction)
-        .await?
-        .id;
+        .await;
 
-        Ok(id)
+        match try_id {
+            Ok(record) => Ok(record.id),
+            Err(_) => {
+                let id = query!(
+                    r#"UPDATE campaign SET
+                        dm_id = (
+                            SELECT id
+                            FROM player
+                            WHERE player_name = $2
+                        ),
+                        timezone_offset = $3
+                    WHERE campaign_name = $1
+                    RETURNING id"#,
+                    self.campaign_name,
+                    self.dm_name,
+                    self.timezone_offset,
+                )
+                .fetch_one(&mut **transaction)
+                .await?
+                .id;
+
+                Ok(id)
+            }
+        }
     }
 
     async fn fetch_or_insert_id(
