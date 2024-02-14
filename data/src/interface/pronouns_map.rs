@@ -9,10 +9,10 @@ pub struct PronounsMap {
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for PronounsMap {
     type Shape = [i32; 2];
 
-    async fn from_values(values_tuple: &'a Self::Shape) -> Self {
+    async fn from_values(values: &'a Self::Shape) -> Self {
         Self {
-            pronouns_id: values_tuple[0],
-            player_id: values_tuple[1],
+            pronouns_id: values[0],
+            player_id: values[1],
         }
     }
 
