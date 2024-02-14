@@ -39,11 +39,8 @@ async fn update_player_from_config<'a, 'tr>(
     for pronouns_string in &player_config.pronouns {
         let pronouns: Pronouns = pronouns_string[..].into();
         let pronouns_id = pronouns.fetch_or_insert_id(&mut *transaction).await;
-        let pronouns_values = Pronouns::try_fetch_values(&mut *transaction, pronouns_id)
-            .await
-            .expect("failed to fetch just-inserted pronouns record");
 
-        let pronouns_map_values = (pronouns_values, player_name.clone());
+        let pronouns_map_values = [pronouns_id, player_id];
         let pronouns_map = PronounsMap::from_values(&pronouns_map_values).await;
         let pronouns_map_id = pronouns_map.fetch_or_insert_id(&mut *transaction).await;
         valid_pronouns_maps.push(pronouns_map_id);
@@ -63,10 +60,8 @@ async fn update_player_from_config<'a, 'tr>(
     let player_pronouns_maps = query!(
         r#"SELECT pronouns_map.id
         FROM pronouns_map
-            JOIN player ON player_id = player.id
-        WHERE
-            player_name = $1"#,
-        player_name
+        WHERE player_id = $1"#,
+        player_id
     )
     .fetch_all(&mut **transaction)
     .await

@@ -73,15 +73,12 @@ async fn pronouns_map_and_censor() {
     let player_id = player.fetch_or_insert_id(&mut transaction).await;
     let dupe_player_id = player.fetch_or_insert_id(&mut transaction).await;
 
-    let pronouns_values = Pronouns::try_fetch_values(&mut transaction, pronouns_id)
-        .await
-        .unwrap();
-    let pronouns_map_values = (pronouns_values, player_name.clone());
+    let pronouns_map_values = [pronouns_id, player_id];
     let pronouns_map = PronounsMap::from_values(&pronouns_map_values).await;
     let pronouns_map_id = pronouns_map.fetch_or_insert_id(&mut transaction).await;
     let dupe_pronouns_map_id = pronouns_map.fetch_or_insert_id(&mut transaction).await;
 
-    let (new_pronouns_values, new_player_name) =
+    let [new_pronouns_id, new_player_id] =
         PronounsMap::try_fetch_values(&mut transaction, pronouns_map_id)
             .await
             .unwrap();
@@ -100,18 +97,10 @@ async fn pronouns_map_and_censor() {
     assert_eq!(pronouns_map_id, dupe_pronouns_map_id);
     assert_eq!(censor_id, dupe_censor_id);
 
-    assert_eq!(new_player_name, player.player_name);
-    assert_eq!(
-        new_pronouns_values,
-        [
-            pronouns.subj,
-            pronouns.obj,
-            pronouns.poss_pres,
-            pronouns.poss_past
-        ]
-    );
+    assert_eq!(new_player_id, player_id);
+    assert_eq!(new_pronouns_id, pronouns_id);
 
-    assert_eq!(censor_player_name, new_player_name);
+    assert_eq!(censor_player_name, player_name);
     assert_eq!(avoid_text, censor_values[0]);
 }
 
