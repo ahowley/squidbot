@@ -3,16 +3,16 @@ use sqlx::{query, Postgres, Transaction};
 
 pub struct Censor<'a> {
     pub avoid_text: &'a str,
-    pub player_name: &'a str,
+    pub player_id: i32,
 }
 
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Censor<'a> {
-    type Shape = [String; 2];
+    type Shape = (String, i32);
 
     async fn from_values(values_tuple: &'a Self::Shape) -> Self {
         Self {
-            avoid_text: &values_tuple[0],
-            player_name: &values_tuple[1],
+            avoid_text: &values_tuple.0,
+            player_id: values_tuple.1,
         }
     }
 
@@ -21,17 +21,15 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Censor<'a> {
         id: i32,
     ) -> sqlx::Result<Self::Shape> {
         let joined = query!(
-            r#"SELECT avoid_text, player_name
+            r#"SELECT avoid_text, player_id
             FROM censor
-                JOIN player
-                ON player_id = player.id
             WHERE censor.id = $1"#,
             id
         )
         .fetch_one(&mut **transaction)
         .await?;
 
-        Ok([joined.avoid_text, joined.player_name])
+        Ok((joined.avoid_text, joined.player_id))
     }
 }
 
@@ -44,11 +42,9 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Censor<'a> {
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
             r#"SELECT censor.id FROM censor
-                JOIN player ON player_id = player.id
-            WHERE player_name = $1
-            AND avoid_text = $2"#,
-            self.player_name,
+            WHERE avoid_text = $1 AND player_id = $2"#,
             self.avoid_text,
+            self.player_id,
         )
         .fetch_one(&mut **transaction)
         .await?
@@ -63,15 +59,11 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Censor<'a> {
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
             r#"INSERT INTO censor (avoid_text, player_id)
-            SELECT $1 as avoid_text, (
-                SELECT id
-                FROM player
-                WHERE player_name = $2
-            ) as player_id
+            VALUES ( $1, $2 )
             ON CONFLICT DO NOTHING
             RETURNING id"#,
             self.avoid_text,
-            self.player_name
+            self.player_id
         )
         .fetch_one(&mut **transaction)
         .await?

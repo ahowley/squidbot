@@ -83,11 +83,11 @@ async fn pronouns_map_and_censor() {
             .await
             .unwrap();
 
-    let censor_values = ["Test Deadname".to_string(), player_name.clone()];
+    let censor_values = ("Test Deadname".to_string(), player_id);
     let censor = Censor::from_values(&censor_values).await;
     let censor_id = censor.fetch_or_insert_id(&mut transaction).await;
     let dupe_censor_id = censor.fetch_or_insert_id(&mut transaction).await;
-    let [avoid_text, censor_player_name] = Censor::try_fetch_values(&mut transaction, censor_id)
+    let (avoid_text, censor_player_id) = Censor::try_fetch_values(&mut transaction, censor_id)
         .await
         .unwrap();
 
@@ -100,8 +100,8 @@ async fn pronouns_map_and_censor() {
     assert_eq!(new_player_id, player_id);
     assert_eq!(new_pronouns_id, pronouns_id);
 
-    assert_eq!(censor_player_name, player_name);
-    assert_eq!(avoid_text, censor_values[0]);
+    assert_eq!(censor_player_id, player_id);
+    assert_eq!(avoid_text, censor_values.0);
 }
 
 #[async_std::test]

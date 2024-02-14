@@ -4,8 +4,8 @@ async fn parse_config() {
     let config = parse::parse_config(path_to_config).await;
 
     assert_eq!(
-        config.campaigns.get("Curse of Strahd").unwrap().log,
-        "r20_curse_of_strahd.html"
+        config.campaigns.get("Descent into Avernus").unwrap().log,
+        "fnd_test_campaign.db"
     );
 }
 

@@ -51,7 +51,7 @@ async fn update_player_from_config<'a, 'tr>(
         if deadname.len() == 0 {
             continue;
         }
-        let censor_values = [deadname.clone(), player_name.clone()];
+        let censor_values = (deadname.clone(), player_id);
         let censor = Censor::from_values(&censor_values).await;
         let censor_id = censor.fetch_or_insert_id(&mut *transaction).await;
         valid_censors.push(censor_id);
@@ -68,12 +68,10 @@ async fn update_player_from_config<'a, 'tr>(
     .expect("failed to fetch player pronouns from database");
 
     let player_censors = query!(
-        r#"SELECT censor.id
+        r#"SELECT id
         FROM censor
-            JOIN player ON player_id = player.id
-        WHERE
-            player_name = $1"#,
-        player_name
+        WHERE player_id = $1"#,
+        player_id
     )
     .fetch_all(&mut **transaction)
     .await
