@@ -1,12 +1,12 @@
 {
   "players": {
     "Alex": {
-      "pronouns": ["he/him/his/his", "they/them/their/theirs"],
+      "pronouns": ["they/them/their/theirs"],
       "deadnames": [""]
     },
     "Bob": {
-      "pronouns": ["he/him/his/his"],
-      "deadnames": ["Bobby"]
+      "pronouns": ["they/them/their/theirs"],
+      "deadnames": [""]
     },
     "Sally": {
       "pronouns": ["she/her/her/hers"],

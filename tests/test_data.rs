@@ -126,15 +126,122 @@ async fn campaign() {
     let player = Player::from_values(&player_name).await;
     player.fetch_or_insert_id(&mut transaction).await;
 
-    let campaign_values = ["Curse of Strahd".to_string(), player_name.clone()];
+    let campaign_values = ("Curse of Strahd".to_string(), player_name.clone(), -6);
     let campaign = Campaign::from_values(&campaign_values).await;
     let campaign_id = campaign.fetch_or_insert_id(&mut transaction).await;
-    let [campaign_name, dm_name] = Campaign::try_fetch_values(&mut transaction, campaign_id)
-        .await
-        .unwrap();
+    let (campaign_name, dm_name, timezone_offset) =
+        Campaign::try_fetch_values(&mut transaction, campaign_id)
+            .await
+            .unwrap();
 
     transaction.rollback().await.unwrap();
     assert_eq!(dm_name, player_name);
     assert_eq!(campaign_name, campaign.campaign_name);
-    assert_eq!(campaign_name, campaign_values[0]);
+    assert_eq!(campaign_name, campaign_values.0);
+    assert_eq!(timezone_offset, -6);
+}
+
+#[async_std::test]
+async fn update_players() {
+    let pool = data::create_connection_pool("../.env.test").await;
+    let mut transaction = data::begin_transaction(&pool).await;
+
+    let config = parse::parse_config("../test_files/test_config.json".to_string()).await;
+    data::update_players(&mut transaction, &config).await;
+
+    let bob_pronouns = sqlx::query!(
+        r#"SELECT subj, obj, poss_pres, poss_past
+        FROM pronouns_map
+            JOIN pronouns ON pronouns_id = pronouns.id
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        "Bob"
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .unwrap();
+
+    let bob_deadnames = sqlx::query!(
+        r#"SELECT avoid_text
+        FROM censor
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        "Bob"
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .unwrap();
+
+    let alex_pronouns = sqlx::query!(
+        r#"SELECT pronouns_id FROM pronouns_map
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        "Alex",
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    assert_eq!(bob_pronouns.subj, "he");
+    assert_eq!(bob_pronouns.obj, "him");
+    assert_eq!(bob_pronouns.poss_pres, "his");
+    assert_eq!(bob_pronouns.poss_past, "his");
+    assert_eq!(bob_deadnames.avoid_text, "Bobby");
+    assert_eq!(alex_pronouns.len(), 2);
+
+    let config = parse::parse_config("../test_files/test_config_update.json".to_string()).await;
+    data::update_players(&mut transaction, &config).await;
+
+    let bob_pronouns = sqlx::query!(
+        r#"SELECT subj, obj, poss_pres, poss_past
+        FROM pronouns_map
+            JOIN pronouns ON pronouns_id = pronouns.id
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        "Bob"
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .unwrap();
+
+    let bob_deadnames = sqlx::query!(
+        r#"SELECT avoid_text
+        FROM censor
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        "Bob"
+    )
+    .fetch_one(&mut *transaction)
+    .await;
+
+    let alex_pronouns = sqlx::query!(
+        r#"SELECT pronouns_id FROM pronouns_map
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        "Alex",
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    assert_eq!(bob_pronouns.subj, "they");
+    assert_eq!(bob_pronouns.obj, "them");
+    assert_eq!(bob_pronouns.poss_pres, "their");
+    assert_eq!(bob_pronouns.poss_past, "theirs");
+    assert_eq!(
+        match bob_deadnames {
+            Err(_) => 1,
+            _ => 0,
+        },
+        1
+    );
+    assert_eq!(alex_pronouns.len(), 1);
+
+    transaction.rollback().await.unwrap();
 }

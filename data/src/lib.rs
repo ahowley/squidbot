@@ -1,5 +1,5 @@
 pub use interface::*;
-use parse::parse_config::PlayerConfig;
+use parse::parse_config::{Config, PlayerConfig};
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
 use std::env;
 
@@ -30,13 +30,13 @@ pub async fn begin_transaction<'a>(pool: &'a Pool<Postgres>) -> Transaction<'a, 
 async fn update_player_from_config<'a, 'tr>(
     transaction: &'a mut Transaction<'tr, Postgres>,
     player_name: &String,
-    player_config: PlayerConfig,
+    player_config: &PlayerConfig,
 ) -> i32 {
     let player = Player::from_values(player_name).await;
     let player_id = player.fetch_or_insert_id(&mut *transaction).await;
 
     let mut valid_pronouns_maps: Vec<i32> = vec![];
-    for pronouns_string in player_config.pronouns {
+    for pronouns_string in &player_config.pronouns {
         let pronouns: Pronouns = pronouns_string[..].into();
         let pronouns_id = pronouns.fetch_or_insert_id(&mut *transaction).await;
         let pronouns_values = Pronouns::try_fetch_values(&mut *transaction, pronouns_id)
@@ -50,8 +50,11 @@ async fn update_player_from_config<'a, 'tr>(
     }
 
     let mut valid_censors: Vec<i32> = vec![];
-    for deadname in player_config.deadnames {
-        let censor_values = [deadname, player_name.clone()];
+    for deadname in &player_config.deadnames {
+        if deadname.len() == 0 {
+            continue;
+        }
+        let censor_values = [deadname.clone(), player_name.clone()];
         let censor = Censor::from_values(&censor_values).await;
         let censor_id = censor.fetch_or_insert_id(&mut *transaction).await;
         valid_censors.push(censor_id);
@@ -102,4 +105,14 @@ async fn update_player_from_config<'a, 'tr>(
     }
 
     player_id
+}
+
+pub async fn update_players<'a, 'tr>(
+    transaction: &'a mut Transaction<'tr, Postgres>,
+    config: &Config,
+) {
+    let players = &config.players;
+    for (player_name, player_config) in players {
+        update_player_from_config(&mut *transaction, player_name, player_config).await;
+    }
 }

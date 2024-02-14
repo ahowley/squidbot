@@ -4,15 +4,17 @@ use sqlx::{query, Postgres, Transaction};
 pub struct Campaign<'a> {
     pub campaign_name: &'a str,
     pub dm_name: &'a str,
+    pub timezone_offset: i32,
 }
 
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Campaign<'a> {
-    type Shape = [String; 2];
+    type Shape = (String, String, i32);
 
     async fn from_values(values_tuple: &'a Self::Shape) -> Self {
         Self {
-            campaign_name: &values_tuple[0],
-            dm_name: &values_tuple[1],
+            campaign_name: &values_tuple.0,
+            dm_name: &values_tuple.1,
+            timezone_offset: values_tuple.2,
         }
     }
 
@@ -21,7 +23,7 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Campaign<'a> {
         id: i32,
     ) -> sqlx::Result<Self::Shape> {
         let joined = query!(
-            r#"SELECT campaign_name, player_name
+            r#"SELECT campaign_name, player_name, timezone_offset
             FROM campaign
                 JOIN player
                 ON dm_id = player.id
@@ -31,7 +33,11 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Campaign<'a> {
         .fetch_one(&mut **transaction)
         .await?;
 
-        Ok([joined.campaign_name, joined.player_name])
+        Ok((
+            joined.campaign_name,
+            joined.player_name,
+            joined.timezone_offset,
+        ))
     }
 }
 
@@ -62,16 +68,18 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Campaign<'a> {
         transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
-            r#"INSERT INTO campaign (campaign_name, dm_id)
+            r#"INSERT INTO campaign (campaign_name, dm_id, timezone_offset)
             SELECT $1 as campaign_name, (
                 SELECT id
                 FROM player
                 WHERE player_name = $2
-            ) as player_id
+            ) as player_id,
+            $3 as timezone_offset
             ON CONFLICT DO NOTHING
             RETURNING id"#,
             self.campaign_name,
             self.dm_name,
+            self.timezone_offset,
         )
         .fetch_one(&mut **transaction)
         .await?

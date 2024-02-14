@@ -45,7 +45,7 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Censor<'a> {
         let id = query!(
             r#"SELECT censor.id FROM censor
                 JOIN player ON player_id = player.id
-            WHERE player.player_name = $1
+            WHERE player_name = $1
             AND avoid_text = $2"#,
             self.player_name,
             self.avoid_text,
