@@ -342,9 +342,31 @@ async fn update_campaigns() {
     .await
     .unwrap();
 
+    let deadname_sender_is_censored = sqlx::query!(
+        r#"SELECT is_censored
+        FROM sender
+        WHERE sender_name = 'boBBy'"#
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .unwrap()
+    .is_censored;
+
+    let normal_sender_is_censored = sqlx::query!(
+        r#"SELECT is_censored
+        FROM sender
+        WHERE sender_name = 'cool_guy 421'"#
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .unwrap()
+    .is_censored;
+
     assert_eq!(campaigns.len(), 2);
-    assert_eq!(descent_senders.len(), 3);
-    assert_eq!(descent_aliases.len(), 3);
+    assert_eq!(descent_senders.len(), 4);
+    assert_eq!(descent_aliases.len(), 4);
+    assert!(deadname_sender_is_censored);
+    assert!(!normal_sender_is_censored);
 
     let config = parse::parse_config("../test_files/test_config_update.json".to_string()).await;
     data::update_players(&mut transaction, &config).await;

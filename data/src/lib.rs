@@ -100,6 +100,30 @@ async fn update_player_from_config<'a, 'tr>(
     player_id
 }
 
+async fn sender_is_censored<'a, 'tr>(
+    transaction: &'a mut Transaction<'tr, Postgres>,
+    sender_name: &str,
+    player_id: i32,
+) -> bool {
+    let censored_flags = query!(
+        r#"SELECT avoid_text
+        FROM censor
+        WHERE
+            player_id = $1 AND
+            LOWER( $2 ) LIKE '%' || LOWER(censor.avoid_text) || '%'
+        "#,
+        player_id,
+        sender_name,
+    )
+    .fetch_all(&mut **transaction)
+    .await;
+
+    match censored_flags {
+        Ok(flags) if flags.len() > 0 => true,
+        _ => false,
+    }
+}
+
 async fn update_campaign_from_config<'a, 'tr>(
     transaction: &'a mut Transaction<'tr, Postgres>,
     campaign_name: &String,
@@ -122,7 +146,11 @@ async fn update_campaign_from_config<'a, 'tr>(
         );
 
         for sender in senders {
-            let sender_values = (sender.clone(), campaign_id, false);
+            let sender_values = (
+                sender.clone(),
+                campaign_id,
+                sender_is_censored(&mut *transaction, sender, player_id).await,
+            );
             let sender = Sender::from_values(&sender_values).await;
             let sender_id = sender.fetch_or_insert_id(&mut *transaction).await;
             valid_senders.push(sender_id);
