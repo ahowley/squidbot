@@ -176,6 +176,7 @@ async fn sender_and_alias() {
     let alias_id = alias.fetch_or_insert_id(&mut transaction).await;
     let new_alias_id = alias.fetch_or_insert_id(&mut transaction).await;
 
+    transaction.rollback().await.unwrap();
     assert_eq!(sender_id, new_sender_id);
     assert_eq!(alias_id, new_alias_id);
 }
@@ -208,7 +209,7 @@ async fn update_players() {
         WHERE
             player_name = 'Bob'"#
     )
-    .fetch_one(&mut *transaction)
+    .fetch_all(&mut *transaction)
     .await
     .unwrap();
 
@@ -231,7 +232,7 @@ async fn update_players() {
     assert_eq!(bob_pronouns.obj, "him");
     assert_eq!(bob_pronouns.poss_pres, "his");
     assert_eq!(bob_pronouns.poss_past, "his");
-    assert_eq!(bob_deadnames.avoid_text, "Bobby");
+    assert_eq!(bob_deadnames.len(), 2);
     assert_eq!(alex_pronouns.len(), 2);
     assert_eq!(players.len(), 4);
 
@@ -257,8 +258,9 @@ async fn update_players() {
         WHERE
             player_name = 'Bob'"#
     )
-    .fetch_one(&mut *transaction)
-    .await;
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
 
     let alex_pronouns = sqlx::query!(
         r#"SELECT pronouns_id FROM pronouns_map
@@ -275,21 +277,14 @@ async fn update_players() {
         .await
         .unwrap();
 
+    transaction.rollback().await.unwrap();
     assert_eq!(bob_pronouns.subj, "they");
     assert_eq!(bob_pronouns.obj, "them");
     assert_eq!(bob_pronouns.poss_pres, "their");
     assert_eq!(bob_pronouns.poss_past, "theirs");
-    assert_eq!(
-        match bob_deadnames {
-            Err(_) => 1,
-            _ => 0,
-        },
-        1
-    );
+    assert_eq!(bob_deadnames.len(), 1);
     assert_eq!(alex_pronouns.len(), 1);
     assert_eq!(players.len(), 3);
-
-    transaction.rollback().await.unwrap();
 }
 
 #[async_std::test]
@@ -355,7 +350,7 @@ async fn update_campaigns() {
     let normal_sender_is_censored = sqlx::query!(
         r#"SELECT is_censored
         FROM sender
-        WHERE sender_name = 'cool_guy 421'"#
+        WHERE sender_name = 'cool_guy 420'"#
     )
     .fetch_one(&mut *transaction)
     .await
@@ -363,8 +358,8 @@ async fn update_campaigns() {
     .is_censored;
 
     assert_eq!(campaigns.len(), 2);
-    assert_eq!(descent_senders.len(), 4);
-    assert_eq!(descent_aliases.len(), 4);
+    assert_eq!(descent_senders.len(), 5);
+    assert_eq!(descent_aliases.len(), 5);
     assert!(deadname_sender_is_censored);
     assert!(!normal_sender_is_censored);
 
@@ -412,8 +407,30 @@ async fn update_campaigns() {
     .await
     .unwrap();
 
+    let added_deadname_sender_is_censored = sqlx::query!(
+        r#"SELECT is_censored
+        FROM sender
+        WHERE sender_name = 'cool_guy 420'"#
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .unwrap()
+    .is_censored;
+
+    let removed_deadname_sender_is_censored = sqlx::query!(
+        r#"SELECT is_censored
+        FROM sender
+        WHERE sender_name = 'boBBy'"#
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .unwrap()
+    .is_censored;
+
     transaction.rollback().await.unwrap();
     assert_eq!(campaigns.len(), 1);
-    assert_eq!(descent_senders.len(), 1);
-    assert_eq!(descent_aliases.len(), 1);
+    assert_eq!(descent_senders.len(), 3);
+    assert_eq!(descent_aliases.len(), 3);
+    assert!(added_deadname_sender_is_censored);
+    assert!(!removed_deadname_sender_is_censored);
 }

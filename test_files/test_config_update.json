@@ -6,7 +6,7 @@
     },
     "Bob": {
       "pronouns": ["they/them/their/theirs"],
-      "deadnames": [""]
+      "deadnames": ["cool_guy"]
     },
     "Sally": {
       "pronouns": ["she/her/her/hers"],
@@ -22,7 +22,7 @@
       "aliases": [
         {
           "player": "Bob",
-          "senders": ["cool_guy 421"]
+          "senders": ["cool_guy 420", "cool_guy 421", "boBBy"]
         }
       ]
     }

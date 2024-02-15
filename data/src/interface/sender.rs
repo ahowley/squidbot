@@ -60,9 +60,10 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Sender<'a> {
         &self,
         transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
-        let id = query!(
+        let try_id = query!(
             r#"INSERT INTO sender (sender_name, campaign_id, is_censored)
             VALUES ( $1, $2, $3 )
+            ON CONFLICT DO NOTHING
             RETURNING id
             "#,
             self.sender_name,
@@ -70,10 +71,28 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Sender<'a> {
             self.is_censored,
         )
         .fetch_one(&mut **transaction)
-        .await?
-        .id;
+        .await;
 
-        Ok(id)
+        match try_id {
+            Ok(record) => Ok(record.id),
+            Err(_) => {
+                let id = query!(
+                    r#"UPDATE sender SET
+                        is_censored = $3
+                    WHERE sender_name = $1 AND
+                    campaign_id = $2
+                    RETURNING id"#,
+                    self.sender_name,
+                    self.campaign_id,
+                    self.is_censored,
+                )
+                .fetch_one(&mut **transaction)
+                .await?
+                .id;
+
+                Ok(id)
+            }
+        }
     }
 
     async fn fetch_or_insert_id(
