@@ -37,9 +37,10 @@ CREATE TABLE IF NOT EXISTS campaign (
 
 CREATE TABLE IF NOT EXISTS sender (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  sender_name TEXT UNIQUE NOT NULL,
+  sender_name TEXT NOT NULL,
   campaign_id INTEGER NOT NULL REFERENCES campaign,
-  is_censored BOOLEAN NOT NULL
+  is_censored BOOLEAN NOT NULL,
+  UNIQUE(sender_name, campaign_id)
 );
 
 CREATE TABLE IF NOT EXISTS alias (

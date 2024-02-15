@@ -15,21 +15,10 @@
   },
   "replace_all_deadnames_with": ":)",
   "campaigns": {
-    "Curse of Strahd": {
-      "log": "r20_curse_of_strahd.html",
-      "dungeon_master": "Bob",
-      "timezone_offset": -6,
-      "aliases": [
-        {
-          "player": "Bob",
-          "senders": ["cool_guy 420"]
-        }
-      ]
-    },
     "Descent into Avernus": {
       "log": "fnd_descent_into_avernus.db",
-      "dungeon_master": "Sally",
-      "timezone_offset": -6,
+      "dungeon_master": "Bob",
+      "timezone_offset": -5,
       "aliases": [
         {
           "player": "Bob",

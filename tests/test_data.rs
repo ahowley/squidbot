@@ -1,12 +1,15 @@
 use data::{IdInterface, ShapeInterface};
+use serial_test::serial;
 
 #[async_std::test]
+#[serial]
 async fn connect_to_test_db() {
     let pool = data::create_connection_pool("../.env.test").await;
     assert_eq!(pool.options().get_max_connections(), 5);
 }
 
 #[async_std::test]
+#[serial]
 async fn pronouns() {
     use data::Pronouns;
 
@@ -34,6 +37,7 @@ async fn pronouns() {
 }
 
 #[async_std::test]
+#[serial]
 async fn player() {
     use data::Player;
 
@@ -58,6 +62,7 @@ async fn player() {
 }
 
 #[async_std::test]
+#[serial]
 async fn pronouns_map_and_censor() {
     use data::{Censor, Player, Pronouns, PronounsMap};
 
@@ -105,6 +110,7 @@ async fn pronouns_map_and_censor() {
 }
 
 #[async_std::test]
+#[serial]
 async fn campaign() {
     use data::{Campaign, Player};
 
@@ -145,6 +151,37 @@ async fn campaign() {
 }
 
 #[async_std::test]
+#[serial]
+async fn sender_and_alias() {
+    use data::{Alias, Campaign, Player, Sender};
+
+    let pool = data::create_connection_pool("../.env.test").await;
+    let mut transaction = data::begin_transaction(&pool).await;
+
+    let player_name = "Bob".to_string();
+    let player = Player::from_values(&player_name).await;
+    let player_id = player.fetch_or_insert_id(&mut transaction).await;
+
+    let campaign_values = ("Curse of Strahd".to_string(), player_name.clone(), -6);
+    let campaign = Campaign::from_values(&campaign_values).await;
+    let campaign_id = campaign.fetch_or_insert_id(&mut transaction).await;
+
+    let sender_values = ("coolguy 420".to_string(), campaign_id, false);
+    let sender = Sender::from_values(&sender_values).await;
+    let sender_id = sender.fetch_or_insert_id(&mut transaction).await;
+    let new_sender_id = sender.fetch_or_insert_id(&mut transaction).await;
+
+    let alias_values = [sender_id, player_id];
+    let alias = Alias::from_values(&alias_values).await;
+    let alias_id = alias.fetch_or_insert_id(&mut transaction).await;
+    let new_alias_id = alias.fetch_or_insert_id(&mut transaction).await;
+
+    assert_eq!(sender_id, new_sender_id);
+    assert_eq!(alias_id, new_alias_id);
+}
+
+#[async_std::test]
+#[serial]
 async fn update_players() {
     let pool = data::create_connection_pool("../.env.test").await;
     let mut transaction = data::begin_transaction(&pool).await;
@@ -253,4 +290,108 @@ async fn update_players() {
     assert_eq!(players.len(), 3);
 
     transaction.rollback().await.unwrap();
+}
+
+#[async_std::test]
+#[serial]
+async fn update_campaigns() {
+    let pool = data::create_connection_pool("../.env.test").await;
+    let mut transaction = data::begin_transaction(&pool).await;
+
+    let config = parse::parse_config("../test_files/test_config.json".to_string()).await;
+    data::update_players(&mut transaction, &config).await;
+    data::update_campaigns(&mut transaction, &config).await;
+
+    let campaigns = sqlx::query!(
+        r#"SELECT id
+        FROM campaign
+        WHERE
+            campaign_name = 'Curse of Strahd' OR
+            campaign_name = 'Descent into Avernus'
+        "#
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    let descent_senders = sqlx::query!(
+        r#"SELECT sender.id
+        FROM sender
+            JOIN campaign ON campaign_id = campaign.id
+        WHERE
+            campaign_name = 'Descent into Avernus'"#
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    let descent_aliases = sqlx::query!(
+        r#"SELECT alias.id
+        FROM alias
+            JOIN sender ON sender_id = sender.id
+        WHERE sender.id IN (
+            SELECT sender.id
+            FROM sender
+                JOIN campaign ON campaign_id = campaign.id
+            WHERE
+                campaign_name = 'Descent into Avernus'
+        )
+        "#
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    assert_eq!(campaigns.len(), 2);
+    assert_eq!(descent_senders.len(), 3);
+    assert_eq!(descent_aliases.len(), 3);
+
+    let config = parse::parse_config("../test_files/test_config_update.json".to_string()).await;
+    data::update_players(&mut transaction, &config).await;
+    data::update_campaigns(&mut transaction, &config).await;
+
+    let campaigns = sqlx::query!(
+        r#"SELECT *
+        FROM campaign
+        WHERE
+            campaign_name = 'Curse of Strahd' OR
+            campaign_name = 'Descent into Avernus'
+        "#
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    let descent_senders = sqlx::query!(
+        r#"SELECT sender.id
+        FROM sender
+            JOIN campaign ON campaign_id = campaign.id
+        WHERE
+            campaign_name = 'Descent into Avernus'"#
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    let descent_aliases = sqlx::query!(
+        r#"SELECT alias.id
+        FROM alias
+            JOIN sender ON sender_id = sender.id
+        WHERE sender.id IN (
+            SELECT sender.id
+            FROM sender
+                JOIN campaign ON campaign_id = campaign.id
+            WHERE
+                campaign_name = 'Descent into Avernus'
+        )
+        "#
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .unwrap();
+
+    transaction.rollback().await.unwrap();
+    assert_eq!(campaigns.len(), 1);
+    assert_eq!(descent_senders.len(), 1);
+    assert_eq!(descent_aliases.len(), 1);
 }
