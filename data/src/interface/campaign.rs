@@ -1,10 +1,116 @@
 use super::{IdInterface, ShapeInterface};
+use crate::{Alias, Player, Sender};
+use parse::parse_config::{AliasConfig, CampaignConfig};
 use sqlx::{query, Postgres, Transaction};
 
 pub struct Campaign<'a> {
     pub campaign_name: &'a str,
     pub dm_name: &'a str,
     pub timezone_offset: i32,
+}
+
+impl<'a, 'tr> Campaign<'a> {
+    async fn update_senders_and_aliases(
+        &self,
+        transaction: &'a mut Transaction<'tr, Postgres>,
+        campaign_config: &CampaignConfig,
+        campaign_id: i32,
+    ) -> (Vec<i32>, Vec<i32>) {
+        let mut valid_senders: Vec<i32> = vec![];
+        let mut valid_aliases: Vec<i32> = vec![];
+        for AliasConfig { player, senders } in &campaign_config.aliases {
+            let player = Player::from_values(player).await;
+            let player_id = player.try_fetch_id(&mut *transaction).await.expect(
+            "failed to fetch player id while parsing campaign - ensure players are updated first",
+        );
+
+            for sender in senders {
+                let sender_values = (
+                    sender.clone(),
+                    campaign_id,
+                    Sender::is_censored(&mut *transaction, sender, player_id).await,
+                );
+                let sender = Sender::from_values(&sender_values).await;
+                let sender_id = sender.fetch_or_insert_id(&mut *transaction).await;
+                valid_senders.push(sender_id);
+
+                let alias_values = [sender_id, player_id];
+                let alias = Alias::from_values(&alias_values).await;
+                let alias_id = alias.fetch_or_insert_id(&mut *transaction).await;
+                valid_aliases.push(alias_id);
+            }
+        }
+
+        (valid_senders, valid_aliases)
+    }
+
+    async fn update_and_prune_senders_and_aliases(
+        &self,
+        transaction: &'a mut Transaction<'tr, Postgres>,
+        campaign_config: &CampaignConfig,
+        campaign_id: i32,
+    ) {
+        let (valid_senders, valid_aliases) = self
+            .update_senders_and_aliases(&mut *transaction, campaign_config, campaign_id)
+            .await;
+        let campaign_senders: Vec<i32> = query!(
+            r#"SELECT id
+        FROM sender
+        WHERE campaign_id = $1"#,
+            campaign_id
+        )
+        .fetch_all(&mut **transaction)
+        .await
+        .expect("failed to fetch player pronouns from database")
+        .iter()
+        .map(|rec| rec.id)
+        .collect();
+
+        let mut campaign_aliases: Vec<i32> = vec![];
+        for sender_id in &campaign_senders {
+            query!(
+                r#"SELECT alias.id
+            FROM alias
+                JOIN sender ON sender_id = sender.id
+            WHERE
+                sender.id = $1"#,
+                sender_id,
+            )
+            .fetch_all(&mut **transaction)
+            .await
+            .unwrap()
+            .iter()
+            .for_each(|rec| campaign_aliases.push(rec.id));
+        }
+
+        for alias_id in campaign_aliases {
+            if !valid_aliases.contains(&alias_id) {
+                query!(r#"DELETE FROM alias WHERE id = $1"#, alias_id)
+                    .execute(&mut **transaction)
+                    .await
+                    .expect("failed to prune alias table");
+            }
+        }
+
+        for sender_id in campaign_senders {
+            if !valid_senders.contains(&sender_id) {
+                query!(r#"DELETE FROM sender WHERE id = $1"#, sender_id)
+                    .execute(&mut **transaction)
+                    .await
+                    .expect("failed to prune sender table");
+            }
+        }
+    }
+
+    pub async fn update_and_prune_dependent_records(
+        &self,
+        transaction: &'a mut Transaction<'tr, Postgres>,
+        campaign_config: &CampaignConfig,
+        campaign_id: i32,
+    ) {
+        self.update_and_prune_senders_and_aliases(&mut *transaction, campaign_config, campaign_id)
+            .await;
+    }
 }
 
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Campaign<'a> {

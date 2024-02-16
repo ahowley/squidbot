@@ -1,7 +1,10 @@
 pub use interface::*;
-use parse::parse_config::{AliasConfig, CampaignConfig, Config, PlayerConfig};
+use parse::{
+    parse_config::{CampaignConfig, Config, PlayerConfig},
+    ChatLog,
+};
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
-use std::env;
+use std::{env, fs::File, sync::Arc};
 
 mod interface;
 
@@ -35,93 +38,11 @@ async fn update_player_from_config<'a, 'tr>(
     let player = Player::from_values(player_name).await;
     let player_id = player.fetch_or_insert_id(&mut *transaction).await;
 
-    let mut valid_pronouns_maps: Vec<i32> = vec![];
-    for pronouns_string in &player_config.pronouns {
-        let pronouns: Pronouns = pronouns_string[..].into();
-        let pronouns_id = pronouns.fetch_or_insert_id(&mut *transaction).await;
-
-        let pronouns_map_values = [pronouns_id, player_id];
-        let pronouns_map = PronounsMap::from_values(&pronouns_map_values).await;
-        let pronouns_map_id = pronouns_map.fetch_or_insert_id(&mut *transaction).await;
-        valid_pronouns_maps.push(pronouns_map_id);
-    }
-
-    let mut valid_censors: Vec<i32> = vec![];
-    for deadname in &player_config.deadnames {
-        if deadname.len() == 0 {
-            continue;
-        }
-        let censor_values = (deadname.clone(), player_id);
-        let censor = Censor::from_values(&censor_values).await;
-        let censor_id = censor.fetch_or_insert_id(&mut *transaction).await;
-        valid_censors.push(censor_id);
-    }
-
-    let player_pronouns_maps = query!(
-        r#"SELECT pronouns_map.id
-        FROM pronouns_map
-        WHERE player_id = $1"#,
-        player_id
-    )
-    .fetch_all(&mut **transaction)
-    .await
-    .expect("failed to fetch player pronouns from database");
-
-    let player_censors = query!(
-        r#"SELECT id
-        FROM censor
-        WHERE player_id = $1"#,
-        player_id
-    )
-    .fetch_all(&mut **transaction)
-    .await
-    .expect("failed to fetch censors for player from database");
-
-    for pronouns_map in player_pronouns_maps {
-        let map_id = pronouns_map.id;
-        if !valid_pronouns_maps.contains(&map_id) {
-            query!(r#"DELETE FROM pronouns_map WHERE id = $1"#, map_id)
-                .execute(&mut **transaction)
-                .await
-                .expect("failed to prune pronouns_map");
-        }
-    }
-
-    for censor in player_censors {
-        let censor_id = censor.id;
-        if !valid_censors.contains(&censor_id) {
-            query!(r#"DELETE FROM censor WHERE id = $1"#, censor_id)
-                .execute(&mut **transaction)
-                .await
-                .expect("failed to prune censors");
-        }
-    }
+    player
+        .update_and_prune_dependent_records(&mut *transaction, player_config, player_id)
+        .await;
 
     player_id
-}
-
-async fn sender_is_censored<'a, 'tr>(
-    transaction: &'a mut Transaction<'tr, Postgres>,
-    sender_name: &str,
-    player_id: i32,
-) -> bool {
-    let censored_flags = query!(
-        r#"SELECT avoid_text
-        FROM censor
-        WHERE
-            player_id = $1 AND
-            LOWER( $2 ) LIKE '%' || LOWER(censor.avoid_text) || '%'
-        "#,
-        player_id,
-        sender_name,
-    )
-    .fetch_all(&mut **transaction)
-    .await;
-
-    match censored_flags {
-        Ok(flags) if flags.len() > 0 => true,
-        _ => false,
-    }
 }
 
 async fn update_campaign_from_config<'a, 'tr>(
@@ -137,78 +58,9 @@ async fn update_campaign_from_config<'a, 'tr>(
     let campaign = Campaign::from_values(&campaign_values).await;
     let campaign_id = campaign.fetch_or_insert_id(&mut *transaction).await;
 
-    let mut valid_senders: Vec<i32> = vec![];
-    let mut valid_aliases: Vec<i32> = vec![];
-    for AliasConfig { player, senders } in &campaign_config.aliases {
-        let player = Player::from_values(player).await;
-        let player_id = player.try_fetch_id(&mut *transaction).await.expect(
-            "failed to fetch player id while parsing campaign - ensure players are updated first",
-        );
-
-        for sender in senders {
-            let sender_values = (
-                sender.clone(),
-                campaign_id,
-                sender_is_censored(&mut *transaction, sender, player_id).await,
-            );
-            let sender = Sender::from_values(&sender_values).await;
-            let sender_id = sender.fetch_or_insert_id(&mut *transaction).await;
-            valid_senders.push(sender_id);
-
-            let alias_values = [sender_id, player_id];
-            let alias = Alias::from_values(&alias_values).await;
-            let alias_id = alias.fetch_or_insert_id(&mut *transaction).await;
-            valid_aliases.push(alias_id);
-        }
-    }
-
-    let campaign_senders: Vec<i32> = query!(
-        r#"SELECT id
-        FROM sender
-        WHERE campaign_id = $1"#,
-        campaign_id
-    )
-    .fetch_all(&mut **transaction)
-    .await
-    .expect("failed to fetch player pronouns from database")
-    .iter()
-    .map(|rec| rec.id)
-    .collect();
-
-    let mut campaign_aliases: Vec<i32> = vec![];
-    for sender_id in &campaign_senders {
-        query!(
-            r#"SELECT alias.id
-            FROM alias
-                JOIN sender ON sender_id = sender.id
-            WHERE
-                sender.id = $1"#,
-            sender_id,
-        )
-        .fetch_all(&mut **transaction)
-        .await
-        .unwrap()
-        .iter()
-        .for_each(|rec| campaign_aliases.push(rec.id));
-    }
-
-    for alias_id in campaign_aliases {
-        if !valid_aliases.contains(&alias_id) {
-            query!(r#"DELETE FROM alias WHERE id = $1"#, alias_id)
-                .execute(&mut **transaction)
-                .await
-                .expect("failed to prune alias table");
-        }
-    }
-
-    for sender_id in campaign_senders {
-        if !valid_senders.contains(&sender_id) {
-            query!(r#"DELETE FROM sender WHERE id = $1"#, sender_id)
-                .execute(&mut **transaction)
-                .await
-                .expect("failed to prune sender table");
-        }
-    }
+    campaign
+        .update_and_prune_dependent_records(&mut *transaction, campaign_config, campaign_id)
+        .await;
 
     campaign_id
 }
@@ -316,5 +168,31 @@ pub async fn update_campaigns<'a, 'tr>(
             .await
             .expect("failed to prune campaigns");
         }
+    }
+}
+
+pub async fn update_posts_from_log(
+    pool: Pool<Postgres>,
+    campaign_name: &str,
+    log: Box<dyn ChatLog<File>>,
+) {
+    let campaign_id = query!(
+        r#"SELECT id FROM campaign WHERE campaign_name = $1"#,
+        campaign_name
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("failed to fetch campaign id")
+    .id;
+    let shareable_pool = Arc::new(pool);
+
+    for post in log {
+        let interface = PostInterface {
+            pool: shareable_pool.clone(),
+            post,
+            campaign_id,
+        };
+
+        interface.try_insert().await.unwrap_or(());
     }
 }

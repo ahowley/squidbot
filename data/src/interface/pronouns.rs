@@ -67,12 +67,21 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Pronouns<'a> {
         transaction: &'a mut Transaction<'tr, Postgres>,
     ) -> sqlx::Result<Self::IdType> {
         let id = query!(
-            r#"SELECT id FROM pronouns WHERE subj = $1 AND obj = $2 AND poss_pres = $3 AND poss_past = $4"#,
+            r#"SELECT id FROM pronouns
+            WHERE
+                subj = $1 AND
+                obj = $2 AND
+                poss_pres = $3 AND
+                poss_past = $4
+            "#,
             self.subj,
             self.obj,
             self.poss_pres,
             self.poss_past
-        ).fetch_one(&mut **transaction).await?.id;
+        )
+        .fetch_one(&mut **transaction)
+        .await?
+        .id;
 
         Ok(id)
     }
@@ -84,7 +93,6 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Pronouns<'a> {
         let id = query!(
             r#"INSERT INTO pronouns (subj, obj, poss_pres, poss_past)
             VALUES ( $1, $2, $3, $4 )
-            ON CONFLICT DO NOTHING
             RETURNING id
             "#,
             self.subj,

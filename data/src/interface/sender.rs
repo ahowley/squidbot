@@ -7,6 +7,32 @@ pub struct Sender<'a> {
     pub is_censored: bool,
 }
 
+impl<'a, 'tr> Sender<'a> {
+    pub async fn is_censored(
+        transaction: &'a mut Transaction<'tr, Postgres>,
+        sender_name: &'a str,
+        player_id: i32,
+    ) -> bool {
+        let censored_flags = query!(
+            r#"SELECT avoid_text
+            FROM censor
+            WHERE
+                player_id = $1 AND
+                LOWER( $2 ) LIKE '%' || LOWER(censor.avoid_text) || '%'
+            "#,
+            player_id,
+            sender_name,
+        )
+        .fetch_all(&mut **transaction)
+        .await;
+
+        match censored_flags {
+            Ok(flags) if flags.len() > 0 => true,
+            _ => false,
+        }
+    }
+}
+
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Sender<'a> {
     type Shape = (String, i32, bool);
 

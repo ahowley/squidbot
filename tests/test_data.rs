@@ -434,3 +434,47 @@ async fn update_campaigns() {
     assert!(added_deadname_sender_is_censored);
     assert!(!removed_deadname_sender_is_censored);
 }
+
+#[async_std::test]
+#[serial]
+async fn update_posts() {
+    let pool = data::create_connection_pool("../.env.test").await;
+    let config = parse::parse_config("../test_files/test_config.json".to_string()).await;
+
+    let mut transaction = data::begin_transaction(&pool).await;
+    data::update_players(&mut transaction, &config).await;
+    data::update_campaigns(&mut transaction, &config).await;
+    transaction.commit().await.unwrap();
+
+    let log = parse::parse_log("../test_files/fnd_test_campaign.db".to_string()).await;
+    data::update_posts_from_log(pool, "Descent into Avernus", log).await;
+
+    let pool = data::create_connection_pool("../.env.test").await;
+    let first_successful_post = sqlx::query!(r#"SELECT id FROM post WHERE id = 'TeStId12355'"#)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .id;
+    let first_successful_roll = sqlx::query!(r#"SELECT * FROM roll WHERE post_id = 'TeStId12355'"#)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let first_successful_roll_single = sqlx::query!(
+        r#"SELECT roll_id, faces, outcome FROM roll_single WHERE roll_id = $1"#,
+        first_successful_roll.id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(first_successful_roll.post_id, first_successful_post);
+    assert_eq!(first_successful_roll.formula, "2d20kl + 0 + 0");
+    assert_eq!(first_successful_roll.outcome, 12.);
+    assert_eq!(first_successful_roll_single.faces, 20);
+    assert_eq!(first_successful_roll_single.outcome, 12);
+
+    sqlx::query!(r#"CALL clear_all_tables()"#)
+        .execute(&pool)
+        .await
+        .unwrap();
+}

@@ -1,1 +1,1 @@
--- Add down migration script here
+DROP PROCEDURE IF EXISTS clear_all_tables;

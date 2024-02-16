@@ -52,23 +52,9 @@ CREATE TABLE IF NOT EXISTS alias (
 
 CREATE TABLE IF NOT EXISTS post (
   id TEXT UNIQUE PRIMARY KEY,
-  campaign_id integer REFERENCES campaign,
-  sender_id integer REFERENCES sender,
-  timestamp_sent TIMESTAMPTZ,
-  failed_parsing BOOLEAN DEFAULT FALSE NOT NULL,
-  content_raw TEXT NOT NULL,
-  CHECK (
-    (
-      failed_parsing
-      AND campaign_id IS NULL
-      AND sender_id IS NULL
-    )
-    OR (
-      NOT failed_parsing
-      AND campaign_id IS NOT NULL
-      AND sender_id IS NOT NULL
-    )
-  )
+  campaign_id integer REFERENCES campaign NOT NULL,
+  sender_id integer REFERENCES sender NOT NULL,
+  timestamp_sent TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS chat_message (
@@ -80,13 +66,13 @@ CREATE TABLE IF NOT EXISTS chat_message (
 CREATE TABLE IF NOT EXISTS roll (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   post_id TEXT REFERENCES post NOT NULL,
-  formula INTEGER NOT NULL,
-  outcome INTEGER NOT NULL
+  formula TEXT NOT NULL,
+  outcome DOUBLE PRECISION NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS roll_single (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   roll_id INTEGER REFERENCES roll NOT NULL,
-  faces TEXT NOT NULL,
-  outcome NUMERIC NOT NULL
+  faces BIGINT NOT NULL,
+  outcome BIGINT NOT NULL
 );
