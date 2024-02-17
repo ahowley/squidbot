@@ -3,6 +3,7 @@ use parse::{
     parse_config::{CampaignConfig, Config, PlayerConfig},
     ChatLog,
 };
+use rand::seq::SliceRandom;
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
 use std::{collections::HashMap, env, sync::Arc};
 
@@ -256,4 +257,48 @@ pub async fn dump_unmapped_senders(config: &Config) -> HashMap<String, Vec<Strin
     }
 
     sender_map
+}
+
+pub async fn fetch_campaign_names(pool: &Pool<Postgres>) -> Vec<String> {
+    query!(r#"SELECT campaign_name FROM campaign"#)
+        .fetch_all(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|campaign| campaign.campaign_name)
+        .collect()
+}
+
+pub async fn fetch_random_chat_message(pool: &Pool<Postgres>, campaign: Option<&str>) -> String {
+    match campaign {
+        Some(campaign_name) => {
+            let messages: Vec<String> = query!(
+                r#"SELECT content FROM chat_message
+            JOIN post ON post_id = post.id
+            JOIN campaign ON campaign_id = campaign.id
+        WHERE
+            campaign_name = $1"#,
+                campaign_name
+            )
+            .fetch_all(pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|message| message.content)
+            .collect();
+
+            messages.choose(&mut rand::thread_rng()).unwrap().clone()
+        }
+        None => {
+            let messages: Vec<String> = query!(r#"SELECT content FROM chat_message"#)
+                .fetch_all(pool)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|message| message.content)
+                .collect();
+
+            messages.choose(&mut rand::thread_rng()).unwrap().clone()
+        }
+    }
 }

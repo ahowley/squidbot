@@ -500,6 +500,7 @@ dependencies = [
  "async-trait",
  "dotenv",
  "parse",
+ "rand",
  "sqlx",
  "tokio",
 ]

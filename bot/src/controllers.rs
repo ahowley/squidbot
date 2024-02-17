@@ -41,3 +41,21 @@ pub async fn dump_unmapped_senders() -> String {
 
     message
 }
+
+pub async fn campaigns() -> Vec<String> {
+    let pool = data::create_connection_pool("./.env").await;
+    data::fetch_campaign_names(&pool).await
+}
+
+pub async fn campaign_quote(campaign: Option<String>) -> String {
+    let pool = data::create_connection_pool("./.env").await;
+
+    if let Some(campaign_name) = campaign {
+        let valid_campaigns = data::fetch_campaign_names(&pool).await;
+        if valid_campaigns.contains(&campaign_name) {
+            return data::fetch_random_chat_message(&pool, Some(&campaign_name)).await;
+        }
+    }
+
+    data::fetch_random_chat_message(&pool, None).await
+}

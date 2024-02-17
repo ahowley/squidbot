@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 dotenv = "0.15.0"
-poise = "0.6.1"
+poise = { version = "0.6.1", features = ["cache"] }
 tokio = { version = "1.36.0", features = ["full"] }
 parse = { path = "../parse" }
 data = { path = "../data" }
