@@ -1,4 +1,5 @@
 use super::{IdInterface, ShapeInterface};
+use async_trait::async_trait;
 use sqlx::{query, Postgres, Transaction};
 
 pub struct Alias {
@@ -6,6 +7,7 @@ pub struct Alias {
     pub player_id: i32,
 }
 
+#[async_trait]
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Alias {
     type Shape = [i32; 2];
 
@@ -33,6 +35,7 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Alias {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> IdInterface<'a, 'tr> for Alias {
     type IdType = i32;
 

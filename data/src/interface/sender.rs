@@ -1,4 +1,5 @@
 use super::{IdInterface, ShapeInterface};
+use async_trait::async_trait;
 use sqlx::{query, Postgres, Transaction};
 
 pub struct Sender<'a> {
@@ -33,6 +34,7 @@ impl<'a, 'tr> Sender<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Sender<'a> {
     type Shape = (String, i32, bool);
 
@@ -61,6 +63,7 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Sender<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> IdInterface<'a, 'tr> for Sender<'a> {
     type IdType = i32;
 

@@ -1,10 +1,11 @@
-use async_std::task::spawn_blocking;
+use async_trait::async_trait;
 use parse_config::Config;
 use parse_foundry::FoundryChatLog;
 use parse_random_message_templates::RandomMessageTemplates;
 use rand::seq::SliceRandom;
 use sqlx::types::chrono::{DateTime, FixedOffset};
-use std::{fs::File, io::Read, path::Path};
+use std::path::Path;
+use tokio::{fs::File, io::AsyncReadExt};
 
 pub mod parse_config;
 mod parse_foundry;
@@ -30,13 +31,14 @@ pub struct Post {
     pub rolls: Vec<Roll>,
 }
 
-pub trait ChatLog<F: Read>: Iterator<Item = Post> {
-    fn new(file: F) -> Self
-    where
-        Self: Sized;
+#[async_trait]
+pub trait ChatLog {
+    async fn new(file: File) -> Self;
+
+    async fn next_post(&mut self) -> Option<Post>;
 }
 
-fn validate_and_open_file(
+async fn validate_and_open_file(
     path: &Path,
     starts_with: Option<&str>,
     contains: Option<&str>,
@@ -76,70 +78,58 @@ fn validate_and_open_file(
         }
     };
 
-    File::open(path).expect(&format!(
+    File::open(path).await.expect(&format!(
         "couldn't find or failed to open file '{}'",
         filename_str
     ))
 }
 
 pub async fn parse_config(path_to_config: String) -> Config {
-    let blocking_parse = spawn_blocking(move || {
-        let path_to_config = Path::new(&path_to_config);
-        let mut file = validate_and_open_file(path_to_config, None, Some("config"), Some("json"));
-        let mut config_json = String::new();
-        file.read_to_string(&mut config_json)
-            .expect("failed to read contents of config.json");
+    let path_to_config = Path::new(&path_to_config);
+    let mut file = validate_and_open_file(path_to_config, None, Some("config"), Some("json")).await;
+    let mut config_json = String::new();
+    file.read_to_string(&mut config_json)
+        .await
+        .expect("failed to read contents of config.json");
 
-        Config::parse(&config_json)
-            .expect("failed to parse config.json - see README or config.example.json for help")
-    });
-
-    blocking_parse.await
+    Config::parse(&config_json)
+        .expect("failed to parse config.json - see README or config.example.json for help")
 }
 
-pub async fn parse_log(path_to_log: String) -> Box<dyn ChatLog<File>> {
-    let blocking_parse = spawn_blocking(move || {
-        let path = Path::new(&path_to_log);
+pub async fn parse_log(path_to_log: String) -> impl ChatLog {
+    let path = Path::new(&path_to_log);
 
-        let file = validate_and_open_file(path, Some("fnd_"), None, Some("db"));
-        let log = FoundryChatLog::new(file);
-
-        Box::new(log)
-    });
-
-    blocking_parse.await
+    let file = validate_and_open_file(path, Some("fnd_"), None, Some("db")).await;
+    FoundryChatLog::new(file).await
 }
 
 pub async fn get_random_message(path_to_templates: String) -> String {
-    let blocking_parse = spawn_blocking(move || {
-        let path = Path::new(&path_to_templates);
+    let path = Path::new(&path_to_templates);
 
-        let mut file =
-            validate_and_open_file(path, None, Some("random_message_templates"), Some("json"));
-        let mut templates_json = String::new();
-        file.read_to_string(&mut templates_json)
-            .expect("failed to read contents of random_message_templates.json");
-        let templates = RandomMessageTemplates::parse(&templates_json)
+    let mut file =
+        validate_and_open_file(path, None, Some("random_message_templates"), Some("json")).await;
+    let mut templates_json = String::new();
+    file.read_to_string(&mut templates_json)
+        .await
+        .expect("failed to read contents of random_message_templates.json");
+    let templates = RandomMessageTemplates::parse(&templates_json)
             .expect("failed to parse random_message_templates.json - see README or random_message_templates.example.json for help");
 
-        if rand::random() {
-            let super_template = templates
-                .super_templates
-                .choose(&mut rand::thread_rng())
-                .unwrap();
-            let random_words = [
-                templates.words.choose(&mut rand::thread_rng()).unwrap(),
-                templates.words.choose(&mut rand::thread_rng()).unwrap(),
-            ];
-            super_template
-                .replace("%a", random_words[0])
-                .replace("%b", random_words[1])
-        } else {
-            let template = templates.templates.choose(&mut rand::thread_rng()).unwrap();
-            let random_word = templates.words.choose(&mut rand::thread_rng()).unwrap();
-            template.replace("%x", random_word)
-        }
-    });
-
-    blocking_parse.await
+    if rand::random() {
+        let super_template = templates
+            .super_templates
+            .choose(&mut rand::thread_rng())
+            .unwrap();
+        let random_words = [
+            templates.words.choose(&mut rand::thread_rng()).unwrap(),
+            templates.words.choose(&mut rand::thread_rng()).unwrap(),
+        ];
+        super_template
+            .replace("%a", random_words[0])
+            .replace("%b", random_words[1])
+    } else {
+        let template = templates.templates.choose(&mut rand::thread_rng()).unwrap();
+        let random_word = templates.words.choose(&mut rand::thread_rng()).unwrap();
+        template.replace("%x", random_word)
+    }
 }

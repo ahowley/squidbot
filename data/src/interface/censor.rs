@@ -1,4 +1,5 @@
 use super::{IdInterface, ShapeInterface};
+use async_trait::async_trait;
 use sqlx::{query, Postgres, Transaction};
 
 pub struct Censor<'a> {
@@ -6,6 +7,7 @@ pub struct Censor<'a> {
     pub player_id: i32,
 }
 
+#[async_trait]
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Censor<'a> {
     type Shape = (String, i32);
 
@@ -33,6 +35,7 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Censor<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> IdInterface<'a, 'tr> for Censor<'a> {
     type IdType = i32;
 

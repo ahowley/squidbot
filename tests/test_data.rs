@@ -1,14 +1,15 @@
 use data::{IdInterface, ShapeInterface};
 use serial_test::serial;
+use std::sync::Arc;
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn connect_to_test_db() {
     let pool = data::create_connection_pool("../.env.test").await;
     assert_eq!(pool.options().get_max_connections(), 5);
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn pronouns() {
     use data::Pronouns;
@@ -36,7 +37,7 @@ async fn pronouns() {
     assert_eq!(new_inserted_id, new_fetched_id);
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn player() {
     use data::Player;
@@ -61,7 +62,7 @@ async fn player() {
     assert_eq!(player_values, player_name);
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn pronouns_map_and_censor() {
     use data::{Censor, Player, Pronouns, PronounsMap};
@@ -109,7 +110,7 @@ async fn pronouns_map_and_censor() {
     assert_eq!(avoid_text, censor_values.0);
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn campaign() {
     use data::{Campaign, Player};
@@ -150,7 +151,7 @@ async fn campaign() {
     assert_eq!(dm_name, "Sally");
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn sender_and_alias() {
     use data::{Alias, Campaign, Player, Sender};
@@ -181,7 +182,7 @@ async fn sender_and_alias() {
     assert_eq!(alias_id, new_alias_id);
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn update_players() {
     let pool = data::create_connection_pool("../.env.test").await;
@@ -287,7 +288,7 @@ async fn update_players() {
     assert_eq!(players.len(), 3);
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn update_campaigns() {
     let pool = data::create_connection_pool("../.env.test").await;
@@ -435,7 +436,7 @@ async fn update_campaigns() {
     assert!(!removed_deadname_sender_is_censored);
 }
 
-#[async_std::test]
+#[tokio::test]
 #[serial]
 async fn update_posts() {
     let pool = data::create_connection_pool("../.env.test").await;
@@ -446,8 +447,13 @@ async fn update_posts() {
     data::update_campaigns(&mut transaction, &config).await;
     transaction.commit().await.unwrap();
 
-    let log = parse::parse_log("../test_files/fnd_test_campaign.db".to_string()).await;
-    data::update_posts_from_log(pool, "Descent into Avernus", log).await;
+    let shareable_pool = Arc::new(pool);
+    data::update_posts_from_log(
+        shareable_pool,
+        "Descent into Avernus",
+        "../test_files/fnd_test_campaign.db".to_string(),
+    )
+    .await;
 
     let pool = data::create_connection_pool("../.env.test").await;
     let first_successful_post = sqlx::query!(r#"SELECT id FROM post WHERE id = 'TeStId12355'"#)

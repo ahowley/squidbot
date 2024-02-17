@@ -1,4 +1,5 @@
 use super::{IdInterface, ShapeInterface};
+use async_trait::async_trait;
 use sqlx::{query, Postgres, Transaction};
 
 pub struct Pronouns<'a> {
@@ -25,6 +26,7 @@ impl<'a> From<&'a str> for Pronouns<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Pronouns<'a> {
     type Shape = [String; 4];
 
@@ -59,6 +61,7 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Pronouns<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> IdInterface<'a, 'tr> for Pronouns<'a> {
     type IdType = i32;
 
@@ -125,7 +128,7 @@ impl<'a, 'tr> IdInterface<'a, 'tr> for Pronouns<'a> {
 mod tests {
     use super::*;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn pronouns_table_from_str() {
         let table: Pronouns = "they/them/their/theirs".into();
         assert_eq!(table.subj, "they");

@@ -5,11 +5,11 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
-async-std = { version = "1.12.0" }
+tokio = { version = "1.36.0", features = ["full"] }
 serial_test = "3.0.0"
 parse = { path = "../parse" }
 data = { path = "../data" }
-sqlx = { version = "0.7", features = [ "runtime-async-std", "postgres", "chrono", "bigdecimal" ] }
+sqlx = { version = "0.7", features = [ "runtime-tokio", "postgres", "chrono", "bigdecimal" ] }
 
 [[test]]
 name = "test_parse"

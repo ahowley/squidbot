@@ -6,3 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dotenv = "0.15.0"
+poise = "0.6.1"
+tokio = { version = "1.36.0", features = ["full"] }
+parse = { path = "../parse" }
+data = { path = "../data" }

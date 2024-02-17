@@ -4,7 +4,7 @@ use parse::{
     ChatLog,
 };
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
-use std::{env, fs::File, sync::Arc};
+use std::{env, sync::Arc};
 
 mod interface;
 
@@ -172,23 +172,24 @@ pub async fn update_campaigns<'a, 'tr>(
 }
 
 pub async fn update_posts_from_log(
-    pool: Pool<Postgres>,
+    pool: Arc<Pool<Postgres>>,
     campaign_name: &str,
-    log: Box<dyn ChatLog<File>>,
+    path_to_log: String,
 ) {
+    let mut log = parse::parse_log(path_to_log.to_string()).await;
+
     let campaign_id = query!(
         r#"SELECT id FROM campaign WHERE campaign_name = $1"#,
         campaign_name
     )
-    .fetch_one(&pool)
+    .fetch_one(&*pool)
     .await
     .expect("failed to fetch campaign id")
     .id;
-    let shareable_pool = Arc::new(pool);
 
-    for post in log {
+    while let Some(post) = log.next_post().await {
         let interface = PostInterface {
-            pool: shareable_pool.clone(),
+            pool: Arc::clone(&pool),
             post,
             campaign_id,
         };

@@ -1,5 +1,6 @@
 use super::{IdInterface, ShapeInterface};
 use crate::{Alias, Player, Sender};
+use async_trait::async_trait;
 use parse::parse_config::{AliasConfig, CampaignConfig};
 use sqlx::{query, Postgres, Transaction};
 
@@ -113,6 +114,7 @@ impl<'a, 'tr> Campaign<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Campaign<'a> {
     type Shape = (String, String, i32);
 
@@ -147,6 +149,7 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Campaign<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> IdInterface<'a, 'tr> for Campaign<'a> {
     type IdType = i32;
 

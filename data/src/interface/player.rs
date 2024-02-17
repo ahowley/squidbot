@@ -1,5 +1,6 @@
 use super::{IdInterface, ShapeInterface};
 use crate::{Censor, Pronouns, PronounsMap};
+use async_trait::async_trait;
 use parse::parse_config::PlayerConfig;
 use sqlx::{query, Postgres, Transaction};
 
@@ -121,6 +122,7 @@ impl<'a, 'tr> Player<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> ShapeInterface<'a, 'tr> for Player<'a> {
     type Shape = String;
 
@@ -141,6 +143,7 @@ impl<'a, 'tr> ShapeInterface<'a, 'tr> for Player<'a> {
     }
 }
 
+#[async_trait]
 impl<'a, 'tr> IdInterface<'a, 'tr> for Player<'a> {
     type IdType = i32;
 
