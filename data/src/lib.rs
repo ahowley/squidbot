@@ -4,7 +4,7 @@ use parse::{
     ChatLog,
 };
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
-use std::{env, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 
 mod interface;
 
@@ -196,4 +196,64 @@ pub async fn update_posts_from_log(
 
         interface.try_insert().await.unwrap_or(());
     }
+}
+
+#[derive(PartialEq)]
+struct UniqueSender {
+    sender_name: String,
+    campaign_name: String,
+}
+
+pub async fn dump_unmapped_senders(config: &Config) -> HashMap<String, Vec<String>> {
+    let mapped_senders: Vec<UniqueSender> = config
+        .campaigns
+        .iter()
+        .map(|(campaign_name, campaign_config)| {
+            campaign_config
+                .aliases
+                .iter()
+                .map(|alias| {
+                    alias.senders.iter().map(|sender_name| UniqueSender {
+                        sender_name: sender_name.clone(),
+                        campaign_name: campaign_name.clone(),
+                    })
+                })
+                .flatten()
+        })
+        .flatten()
+        .collect();
+
+    let mut unmapped_senders: Vec<UniqueSender> = vec![];
+    for (campaign_name, campaign_config) in &config.campaigns {
+        let path_to_log = format!("./chatlogs/{}", campaign_config.log);
+        let mut log = parse::parse_log(path_to_log.to_string()).await;
+        while let Some(post) = log.next_post().await {
+            let sender = UniqueSender {
+                sender_name: post.sender_name.clone(),
+                campaign_name: campaign_name.clone(),
+            };
+            if !unmapped_senders.contains(&sender) && !mapped_senders.contains(&sender) {
+                unmapped_senders.push(sender);
+            }
+        }
+    }
+
+    let mut sender_map = HashMap::<String, Vec<String>>::new();
+
+    for UniqueSender {
+        sender_name,
+        campaign_name,
+    } in unmapped_senders
+    {
+        if sender_map.get(&campaign_name).is_none() {
+            let senders_vec: Vec<String> = vec![];
+            sender_map.insert(campaign_name.clone(), senders_vec);
+        }
+        sender_map
+            .get_mut(&campaign_name)
+            .unwrap()
+            .push(sender_name);
+    }
+
+    sender_map
 }

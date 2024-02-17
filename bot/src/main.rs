@@ -28,6 +28,20 @@ async fn update_chatlogs(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+#[poise::command(
+    slash_command,
+    prefix_command,
+    hide_in_help,
+    check = "is_owner_check",
+    category = "Utility"
+)]
+async fn dump_unmapped_senders(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("Collecting senders...").await?;
+    let message = controllers::dump_unmapped_senders().await;
+    ctx.say(message).await?;
+    Ok(())
+}
+
 /// I'll send you a random message!
 #[poise::command(slash_command, prefix_command, category = "Fun")]
 async fn message(ctx: Context<'_>) -> Result<(), Error> {
@@ -74,7 +88,12 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![update_chatlogs(), message(), help()],
+            commands: vec![
+                update_chatlogs(),
+                dump_unmapped_senders(),
+                message(),
+                help(),
+            ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("?".into()),
                 ..Default::default()

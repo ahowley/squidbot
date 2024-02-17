@@ -25,3 +25,19 @@ pub async fn update_chatlogs() {
         .await;
     }
 }
+
+pub async fn dump_unmapped_senders() -> String {
+    let config = parse::parse_config("./config.json".to_string()).await;
+    let senders_map = data::dump_unmapped_senders(&config).await;
+    let mut message = "```".to_string();
+
+    for (campaign, senders) in senders_map {
+        message.push_str(&format!("--------{campaign}--------\n"));
+        for sender in senders {
+            message.push_str(&format!("\"{sender}\",\n"));
+        }
+    }
+    message.push_str("```");
+
+    message
+}
