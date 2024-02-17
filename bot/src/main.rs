@@ -58,22 +58,23 @@ async fn message(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-/// Grabs the names of all campaigns in the database for use in other commands.
-#[poise::command(slash_command, prefix_command, aliases("camp"), category = "Utility")]
-async fn campaigns(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.say(format!(
-        "Here's a list of all the campaign's I know about: {}",
-        controllers::campaigns().await.join(", ")
-    ))
-    .await?;
-    Ok(())
+fn campaignquote_help() -> String {
+    let blocking_get_message =
+        futures::executor::block_on(async { controllers::campaigns().await.join(",\n") });
+    format!("Here's a list of all the campaigns I know about:\n```\n{blocking_get_message}```",)
 }
 
-/// Gets a random campaign quote, optionally from a specific campaign.
-#[poise::command(slash_command, prefix_command, aliases("cq"), category = "Fun")]
+/// Gets a random campaign quote, with some optional filters.
+#[poise::command(
+    slash_command,
+    prefix_command,
+    aliases("cq"),
+    help_text_fn = "campaignquote_help",
+    category = "Fun"
+)]
 async fn campaignquote(
     ctx: Context<'_>,
-    #[description = "The name of the campaign you'd like to fetch from - use /campaigns to see the options!"]
+    #[description = "The name of the campaign you'd like to fetch from - use /help campaignquote to see the options!"]
     #[rest]
     campaign: Option<String>,
 ) -> Result<(), Error> {
@@ -168,7 +169,6 @@ async fn main() {
                 update_chatlogs(),
                 dump_unmapped_senders(),
                 message(),
-                campaigns(),
                 campaignquote(),
                 help(),
                 register(),

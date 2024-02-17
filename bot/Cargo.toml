@@ -9,5 +9,6 @@ edition = "2021"
 dotenv = "0.15.0"
 poise = { version = "0.6.1", features = ["cache"] }
 tokio = { version = "1.36.0", features = ["full"] }
+futures = "0.3.30"
 parse = { path = "../parse" }
 data = { path = "../data" }
