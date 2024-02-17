@@ -1,11 +1,14 @@
 use async_std::task::spawn_blocking;
 use parse_config::Config;
 use parse_foundry::FoundryChatLog;
+use parse_random_message_templates::RandomMessageTemplates;
+use rand::seq::SliceRandom;
 use sqlx::types::chrono::{DateTime, FixedOffset};
 use std::{fs::File, io::Read, path::Path};
 
 pub mod parse_config;
 mod parse_foundry;
+mod parse_random_message_templates;
 
 pub struct RollSingle {
     pub faces: i64,
@@ -102,6 +105,40 @@ pub async fn parse_log(path_to_log: String) -> Box<dyn ChatLog<File>> {
         let log = FoundryChatLog::new(file);
 
         Box::new(log)
+    });
+
+    blocking_parse.await
+}
+
+pub async fn get_random_message(path_to_templates: String) -> String {
+    let blocking_parse = spawn_blocking(move || {
+        let path = Path::new(&path_to_templates);
+
+        let mut file =
+            validate_and_open_file(path, None, Some("random_message_templates"), Some("json"));
+        let mut templates_json = String::new();
+        file.read_to_string(&mut templates_json)
+            .expect("failed to read contents of random_message_templates.json");
+        let templates = RandomMessageTemplates::parse(&templates_json)
+            .expect("failed to parse random_message_templates.json - see README or random_message_templates.example.json for help");
+
+        if rand::random() {
+            let super_template = templates
+                .super_templates
+                .choose(&mut rand::thread_rng())
+                .unwrap();
+            let random_words = [
+                templates.words.choose(&mut rand::thread_rng()).unwrap(),
+                templates.words.choose(&mut rand::thread_rng()).unwrap(),
+            ];
+            super_template
+                .replace("%a", random_words[0])
+                .replace("%b", random_words[1])
+        } else {
+            let template = templates.templates.choose(&mut rand::thread_rng()).unwrap();
+            let random_word = templates.words.choose(&mut rand::thread_rng()).unwrap();
+            template.replace("%x", random_word)
+        }
     });
 
     blocking_parse.await

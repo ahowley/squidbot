@@ -1,0 +1,5 @@
+{
+  "super_templates": ["%a\nand then %b", "%a\nor %b", "%a\nbut %b", "%a\ntherefore %b"],
+  "templates": ["%x ahead", "Let there be %x", "%x", "%x!", "%x?", "%x..."],
+  "words": ["item", "close-quarters battle", "attacking", "morning", "high road", "east"]
+}

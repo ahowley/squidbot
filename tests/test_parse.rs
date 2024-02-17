@@ -19,3 +19,13 @@ async fn parse_foundry_chatlog() {
     assert_eq!(posts[1].sender_name, "");
     assert_eq!(posts.len(), 4);
 }
+
+#[async_std::test]
+async fn get_random_message() {
+    let message =
+        parse::get_random_message("../test_files/test_random_message_templates.json".to_string())
+            .await;
+    let possible_messages = ["dog\nand then dog".to_string(), "dog ahead".to_string()];
+
+    assert!(possible_messages.contains(&message));
+}

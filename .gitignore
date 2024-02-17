@@ -10,3 +10,5 @@ config.json
 /target
 /dev
 /chatlogs
+
+random_message_templates.json

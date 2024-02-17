@@ -1,0 +1,5 @@
+{
+  "super_templates": ["%a\nand then %b"],
+  "templates": ["%x ahead"],
+  "words": ["dog"]
+}
