@@ -64,7 +64,7 @@ pub async fn who_sent(message: String) -> String {
     let pool = data::create_connection_pool("./.env").await;
 
     if let Some(results) = data::trace_message(&pool, &message).await {
-        let mut response = "Here's what I found:\n\n".to_string();
+        let mut response = format!("Here's everyone who sent '`{}`':\n\n", message);
         response.push_str(
             &results
                 .into_iter()
@@ -76,5 +76,5 @@ pub async fn who_sent(message: String) -> String {
         return response;
     }
 
-    return "Sorry - I couldn't find that message in the database!".to_string();
+    return format!("Sorry - I couldn't find '`{}`' in the database!", message);
 }

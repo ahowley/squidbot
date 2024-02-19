@@ -82,7 +82,7 @@ async fn campaignquote(
     Ok(())
 }
 
-/// Find out who sent a message! You can also simply send ".whosent" when replying to a message.
+/// Find out who sent a message! You can also send ".whosent" or ".ws" when replying to a message.
 #[poise::command(slash_command, aliases("ws"), category = "Fun")]
 async fn whosent(
     ctx: Context<'_>,
@@ -156,9 +156,15 @@ async fn event_handler(
                 if new_message.content.starts_with(".whosent")
                     || new_message.content.starts_with(".ws")
                 {
+                    println!("Executing response to whosent reply");
                     let search_message = &replied_to.content;
                     let reply = controllers::who_sent(search_message.clone()).await;
                     new_message.reply(ctx, reply).await?;
+                } else if &replied_to.author.id == &ctx.cache.current_user().id {
+                    println!("Executing response to bot reply");
+                    new_message
+                        .reply(ctx, controllers::campaign_quote(None).await)
+                        .await?;
                 }
             } else if new_message
                 .mentions
@@ -167,6 +173,7 @@ async fn event_handler(
                 .collect::<Vec<serenity::UserId>>()
                 .contains(&ctx.cache.current_user().id)
             {
+                println!("Executing response to bot mention");
                 new_message
                     .reply(ctx, controllers::campaign_quote(None).await)
                     .await?;
