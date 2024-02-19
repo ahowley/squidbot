@@ -1,3 +1,4 @@
+use futures::{executor::block_on, future};
 use poise::{samples::HelpConfiguration, serenity_prelude as serenity};
 
 mod controllers;
@@ -59,26 +60,48 @@ async fn message(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 fn campaignquote_help() -> String {
-    let blocking_get_message =
-        futures::executor::block_on(async { controllers::campaigns().await.join(",\n") });
-    format!("Here's a list of all the campaigns I know about:\n```\n{blocking_get_message}```",)
+    let (campaigns, senders, players) = block_on(async {
+        let results = future::join3(
+            controllers::campaigns(),
+            controllers::senders(),
+            controllers::players(),
+        )
+        .await;
+        results
+    });
+    format!(
+        "Here's a list of all the campaigns I know about:\n```\n{}```
+        
+        Here's a list of all the senders I know about:\n```\n{}```
+        
+        Here's a list of all the players I know about:\n```\n{}```",
+        campaigns.join(", "),
+        senders.join(", "),
+        players.join(", ")
+    )
 }
 
 /// Gets a random campaign quote, with some optional filters.
 #[poise::command(
     slash_command,
-    prefix_command,
     aliases("cq"),
     help_text_fn = "campaignquote_help",
     category = "Fun"
 )]
 async fn campaignquote(
     ctx: Context<'_>,
-    #[description = "The name of the campaign you'd like to fetch from - use /help campaignquote to see the options!"]
+    #[description = "The name of the campaign you'd like to fetch from!"]
     #[rest]
     campaign: Option<String>,
+    #[description = "The name of the sender who sent the message!"]
+    #[rest]
+    sender: Option<String>,
+    #[description = "The name of the campaign you'd like to fetch from!"]
+    #[rest]
+    player: Option<String>,
 ) -> Result<(), Error> {
-    ctx.say(controllers::campaign_quote(campaign).await).await?;
+    ctx.say(controllers::campaign_quote(campaign, sender, player).await)
+        .await?;
     Ok(())
 }
 
@@ -163,7 +186,7 @@ async fn event_handler(
                 } else if &replied_to.author.id == &ctx.cache.current_user().id {
                     println!("Executing response to bot reply");
                     new_message
-                        .reply(ctx, controllers::campaign_quote(None).await)
+                        .reply(ctx, controllers::campaign_quote(None, None, None).await)
                         .await?;
                 }
             } else if new_message
@@ -175,7 +198,7 @@ async fn event_handler(
             {
                 println!("Executing response to bot mention");
                 new_message
-                    .reply(ctx, controllers::campaign_quote(None).await)
+                    .reply(ctx, controllers::campaign_quote(None, None, None).await)
                     .await?;
             }
         }

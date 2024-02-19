@@ -77,38 +77,58 @@ pub async fn fetch_campaign_names(pool: &Pool<Postgres>) -> Vec<String> {
         .collect()
 }
 
-pub async fn fetch_random_chat_message(pool: &Pool<Postgres>, campaign: Option<&str>) -> String {
-    match campaign {
-        Some(campaign_name) => {
-            let messages: Vec<String> = query!(
-                r#"SELECT content FROM chat_message
-                    JOIN post ON post_id = post.id
-                    JOIN campaign ON campaign_id = campaign.id
-                WHERE
-                    campaign_name = $1"#,
-                campaign_name
-            )
-            .fetch_all(pool)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|message| message.content)
-            .collect();
+pub async fn fetch_sender_names(pool: &Pool<Postgres>) -> Vec<String> {
+    query!(r#"SELECT sender_name FROM sender"#)
+        .fetch_all(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|sender| sender.sender_name)
+        .collect()
+}
 
-            messages.choose(&mut rand::thread_rng()).unwrap().clone()
-        }
-        None => {
-            let messages: Vec<String> = query!(r#"SELECT content FROM chat_message"#)
-                .fetch_all(pool)
-                .await
-                .unwrap()
-                .into_iter()
-                .map(|message| message.content)
-                .collect();
+pub async fn fetch_player_names(pool: &Pool<Postgres>) -> Vec<String> {
+    query!(r#"SELECT player_name FROM player"#)
+        .fetch_all(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|player| player.player_name)
+        .collect()
+}
 
-            messages.choose(&mut rand::thread_rng()).unwrap().clone()
-        }
-    }
+pub async fn fetch_random_chat_message(
+    pool: &Pool<Postgres>,
+    campaign: &str,
+    sender: &str,
+    player: &str,
+) -> String {
+    let messages: Vec<String> = query!(
+        r#"SELECT content FROM chat_message
+            JOIN post ON chat_message.post_id = post.id
+            JOIN campaign ON post.campaign_id = campaign.id
+            JOIN sender ON post.sender_id = sender.id
+            JOIN alias ON sender.id = alias.sender_id
+            JOIN player ON alias.player_id = player.id
+        WHERE
+            LOWER(campaign_name) LIKE LOWER('%' || $1 || '%') AND
+            LOWER(sender_name) LIKE LOWER('%' || $2 || '%') AND
+            LOWER(player_name) LIKE LOWER('%' || $3 || '%')"#,
+        campaign,
+        sender,
+        player
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|message| message.content)
+    .collect();
+
+    messages
+        .choose(&mut rand::thread_rng())
+        .unwrap_or(&"".to_string())
+        .clone()
 }
 
 pub struct MessageTrace {

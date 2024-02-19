@@ -47,17 +47,35 @@ pub async fn campaigns() -> Vec<String> {
     data::fetch_campaign_names(&pool).await
 }
 
-pub async fn campaign_quote(campaign: Option<String>) -> String {
+pub async fn senders() -> Vec<String> {
+    let pool = data::create_connection_pool("./.env").await;
+    data::fetch_sender_names(&pool).await
+}
+
+pub async fn players() -> Vec<String> {
+    let pool = data::create_connection_pool("./.env").await;
+    data::fetch_player_names(&pool).await
+}
+
+pub async fn campaign_quote(
+    campaign: Option<String>,
+    sender: Option<String>,
+    player: Option<String>,
+) -> String {
     let pool = data::create_connection_pool("./.env").await;
 
-    if let Some(campaign_name) = campaign {
-        let valid_campaigns = data::fetch_campaign_names(&pool).await;
-        if valid_campaigns.contains(&campaign_name) {
-            return data::fetch_random_chat_message(&pool, Some(&campaign_name)).await;
-        }
-    }
+    let campaign_name = campaign.unwrap_or("".to_string());
+    let sender_name = sender.unwrap_or("".to_string());
+    let player_name = player.unwrap_or("".to_string());
 
-    data::fetch_random_chat_message(&pool, None).await
+    let result =
+        data::fetch_random_chat_message(&pool, &campaign_name, &sender_name, &player_name).await;
+
+    if result.len() > 0 {
+        result
+    } else {
+        "Sorry, I couldn't find any quotes with these filters!".to_string()
+    }
 }
 
 pub async fn who_sent(message: String) -> String {
