@@ -82,6 +82,19 @@ async fn campaignquote(
     Ok(())
 }
 
+/// Find out who sent a message! You can also simply send ".whosent" when replying to a message.
+#[poise::command(slash_command, aliases("ws"), category = "Fun")]
+async fn whosent(
+    ctx: Context<'_>,
+    #[description = "The message to search for"]
+    #[rest]
+    message: String,
+) -> Result<(), Error> {
+    let reply = controllers::who_sent(message).await;
+    ctx.say(reply).await?;
+    Ok(())
+}
+
 #[poise::command(slash_command, prefix_command, track_edits, category = "Utility")]
 async fn help(
     ctx: Context<'_>,
@@ -139,7 +152,15 @@ async fn event_handler(
             println!("Logged in as {}", data_about_bot.user.name);
         }
         serenity::FullEvent::Message { new_message } => {
-            if new_message
+            if let Some(replied_to) = &new_message.referenced_message {
+                if new_message.content.starts_with(".whosent")
+                    || new_message.content.starts_with(".ws")
+                {
+                    let search_message = &replied_to.content;
+                    let reply = controllers::who_sent(search_message.clone()).await;
+                    new_message.reply(ctx, reply).await?;
+                }
+            } else if new_message
                 .mentions
                 .iter()
                 .map(|user| user.id)
@@ -170,6 +191,7 @@ async fn main() {
                 dump_unmapped_senders(),
                 message(),
                 campaignquote(),
+                whosent(),
                 help(),
                 register(),
             ],

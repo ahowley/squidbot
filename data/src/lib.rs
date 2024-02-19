@@ -4,8 +4,13 @@ use parse::{
     ChatLog,
 };
 use rand::seq::SliceRandom;
-use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
-use std::{collections::HashMap, env, sync::Arc};
+use sqlx::{
+    postgres::PgPoolOptions,
+    query, query_as,
+    types::chrono::{DateTime, FixedOffset, Utc},
+    Pool, Postgres, Transaction,
+};
+use std::{collections::HashMap, env, fmt::Display, sync::Arc};
 
 mod interface;
 
@@ -301,4 +306,52 @@ pub async fn fetch_random_chat_message(pool: &Pool<Postgres>, campaign: Option<&
             messages.choose(&mut rand::thread_rng()).unwrap().clone()
         }
     }
+}
+
+pub struct MessageTrace {
+    sender_name: String,
+    player_name: String,
+    campaign_name: String,
+    timestamp_sent: DateTime<Utc>,
+    timezone_offset: i32,
+}
+
+impl Display for MessageTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let fixed_offset = FixedOffset::east_opt(self.timezone_offset * 3600).unwrap();
+        let offset_timezone = self.timestamp_sent + fixed_offset;
+        let date = offset_timezone.date_naive().format("%m/%d/%Y");
+        let time = offset_timezone.time().format("%-I:%M %p");
+        write!(
+            f,
+            "'{}' ({}) sent this on {} at {} in their \"{}\" campaign",
+            self.sender_name, self.player_name, date, time, self.campaign_name
+        )
+    }
+}
+
+pub async fn trace_message(pool: &Pool<Postgres>, message: &str) -> Option<Vec<MessageTrace>> {
+    let results: Vec<MessageTrace> = query_as!(
+        MessageTrace,
+        r#"SELECT sender_name, player_name, campaign_name, timestamp_sent, timezone_offset
+        FROM alias
+            JOIN sender ON alias.sender_id = sender.id
+            JOIN player ON player_id = player.id
+            JOIN post ON sender.id = post.sender_id
+            JOIN chat_message ON post.id = post_id
+            JOIN campaign ON post.campaign_id = campaign.id
+        WHERE
+            LOWER( $1 ) LIKE LOWER( content ) AND
+            is_censored IS NOT TRUE"#,
+        message
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or(vec![]);
+
+    if results.len() == 0 {
+        return None;
+    }
+
+    Some(results)
 }

@@ -59,3 +59,22 @@ pub async fn campaign_quote(campaign: Option<String>) -> String {
 
     data::fetch_random_chat_message(&pool, None).await
 }
+
+pub async fn who_sent(message: String) -> String {
+    let pool = data::create_connection_pool("./.env").await;
+
+    if let Some(results) = data::trace_message(&pool, &message).await {
+        let mut response = "Here's what I found:\n\n".to_string();
+        response.push_str(
+            &results
+                .into_iter()
+                .map(|trace| format!("```{trace}```"))
+                .collect::<Vec<String>>()
+                .join("\n"),
+        );
+
+        return response;
+    }
+
+    return "Sorry - I couldn't find that message in the database!".to_string();
+}
