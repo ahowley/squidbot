@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use parse_config::Config;
+pub use parse_dicemath::{dicemath, num_with_thousands_commas};
 use parse_foundry::FoundryChatLog;
 use parse_random_message_templates::RandomMessageTemplates;
 pub use parse_roll_20::Roll20ChatLog;

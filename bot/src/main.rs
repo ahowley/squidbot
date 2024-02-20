@@ -118,6 +118,69 @@ async fn whosent(
     Ok(())
 }
 
+/// Roll some dice or do some math (or both!)
+#[poise::command(
+    slash_command,
+    prefix_command,
+    aliases("r", "rm", "m", "math"),
+    category = "Nerd"
+)]
+async fn roll(
+    ctx: Context<'_>,
+    #[description = "The message to search for"]
+    #[rest]
+    expr: String,
+) -> Result<(), Error> {
+    ctx.say(controllers::roll(expr.as_str()).await).await?;
+    Ok(())
+}
+
+/// Get an estimated odds of rolling a certain result (out of 1 million rolls).
+#[poise::command(slash_command, prefix_command, aliases("o"), category = "Nerd")]
+async fn odds(
+    ctx: Context<'_>,
+    #[description = "The outcome of the roll"] result: String,
+    #[description = "The roll being made"]
+    #[rest]
+    expr: String,
+) -> Result<(), Error> {
+    let res_float_option = result.parse::<f64>().ok();
+    if res_float_option.is_none() {
+        ctx.say(
+            "Sorry, I couldn't get the estimated odds of rolling `{result}` or higher on: `{expr}`",
+        )
+        .await?;
+    } else {
+        let res_float = res_float_option.unwrap();
+        ctx.say(controllers::odds(expr.as_str(), res_float, 1_000_000).await)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Get an estimated odds of rolling a certain result (out of 100 million rolls).
+#[poise::command(slash_command, prefix_command, aliases("op"), category = "Nerd")]
+async fn odds_precise(
+    ctx: Context<'_>,
+    #[description = "The outcome of the roll"] result: String,
+    #[description = "The roll being made"]
+    #[rest]
+    expr: String,
+) -> Result<(), Error> {
+    let res_float_option = result.parse::<f64>().ok();
+    if res_float_option.is_none() {
+        ctx.say(
+            "Sorry, I couldn't get the estimated odds of rolling `{result}` or higher on: `{expr}`",
+        )
+        .await?;
+    } else {
+        let res_float = res_float_option.unwrap();
+        ctx.say(controllers::odds(expr.as_str(), res_float, 100_000_000).await)
+            .await?;
+    }
+    Ok(())
+}
+
 /// Test get nth post as html from empyrean
 #[poise::command(prefix_command, hide_in_help, category = "Util")]
 async fn test_empyrean(_ctx: Context<'_>) -> Result<(), Error> {
@@ -236,6 +299,9 @@ async fn main() {
                 message(),
                 campaignquote(),
                 whosent(),
+                roll(),
+                odds(),
+                odds_precise(),
                 test_empyrean(),
                 help(),
                 register(),

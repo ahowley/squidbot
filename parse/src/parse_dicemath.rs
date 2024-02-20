@@ -1,7 +1,6 @@
-use std::{iter::Enumerate, str::Chars};
+use std::str::Chars;
 
 use rand::Rng;
-use unicode_segmentation::UnicodeSegmentation;
 
 fn roll_dice(number: u32, faces: u32) -> Vec<u32> {
     let mut results: Vec<u32> = Vec::with_capacity(number as usize);
@@ -126,6 +125,23 @@ fn recursive_descent(start_value: f64, operator: char, expr: &mut Chars<'_>) -> 
     }
 
     evaluate(first_value, parsing_value.parse::<f64>().ok()?, op)
+}
+
+pub fn num_with_thousands_commas(num: u64) -> String {
+    num.to_string()
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(std::str::from_utf8)
+        .collect::<Result<Vec<&str>, _>>()
+        .unwrap()
+        .join(",")
+}
+
+pub fn dicemath(expr: &str) -> Option<f64> {
+    let result = recursive_descent(0., '+', &mut expr.chars())?;
+
+    Some(result)
 }
 
 #[cfg(test)]

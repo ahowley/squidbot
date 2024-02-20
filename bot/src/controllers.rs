@@ -1,3 +1,4 @@
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::sync::Arc;
 
 pub async fn message() -> String {
@@ -95,4 +96,34 @@ pub async fn who_sent(message: String) -> String {
     }
 
     return format!("Sorry - I couldn't find '`{}`' in the database!", message);
+}
+
+pub async fn roll(expr: &str) -> String {
+    let result = parse::dicemath(expr);
+
+    match result {
+        Some(value) => format!("Result for `{expr}`:\n`{value}`"),
+        None => format!("Sorry, I couldn't figure out how to parse `{expr}`!"),
+    }
+}
+
+pub async fn odds(expr: &str, val: f64, num_rolls: u64) -> String {
+    let results: Vec<bool> = (0..num_rolls)
+        .into_par_iter()
+        .filter_map(|_| {
+            let result = parse::dicemath(expr)?;
+            if result >= val {
+                Some(true)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    format!(
+        "Out of `{}` rolls of `{expr}`, I rolled a `{val}` or higher a total of `{}` times.\n\nMy estimated odds of rolling a `{val}` or higher is about `{}`%!",
+        parse::num_with_thousands_commas(num_rolls as u64),
+        parse::num_with_thousands_commas(results.len() as u64),
+        results.len() as f64 / (num_rolls as f64) * 100.
+    )
 }

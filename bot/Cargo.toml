@@ -12,3 +12,4 @@ tokio = { version = "1.36.0", features = ["full"] }
 futures = "0.3.30"
 parse = { path = "../parse" }
 data = { path = "../data" }
+rayon = "1.8.1"
