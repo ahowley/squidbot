@@ -1437,7 +1437,6 @@ dependencies = [
  "async-trait",
  "clap",
  "rand",
- "regex",
  "scraper",
  "serde",
  "serde_json",

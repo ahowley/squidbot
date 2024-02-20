@@ -8,7 +8,6 @@ use tokio::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-//December 28, 2023 1:56PM
 const DATETIME_STRP: &'static str = "%B %d, %Y %I:%M%p %z";
 const DATE_STRF: &'static str = "%B %d, %Y";
 const TIME_STRP_STRF: &'static str = "%I:%M%p %z";

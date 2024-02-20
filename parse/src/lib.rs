@@ -9,6 +9,7 @@ use std::path::Path;
 use tokio::{fs::File, io::AsyncReadExt};
 
 pub mod parse_config;
+mod parse_dicemath;
 mod parse_foundry;
 mod parse_random_message_templates;
 mod parse_roll_20;
