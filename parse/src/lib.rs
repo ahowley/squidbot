@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use parse_config::Config;
 use parse_foundry::FoundryChatLog;
 use parse_random_message_templates::RandomMessageTemplates;
+pub use parse_roll_20::Roll20ChatLog;
 use rand::seq::SliceRandom;
 use sqlx::types::chrono::{DateTime, FixedOffset};
 use std::path::Path;
@@ -10,6 +11,7 @@ use tokio::{fs::File, io::AsyncReadExt};
 pub mod parse_config;
 mod parse_foundry;
 mod parse_random_message_templates;
+mod parse_roll_20;
 
 pub struct RollSingle {
     pub faces: i64,
@@ -33,7 +35,7 @@ pub struct Post {
 
 #[async_trait]
 pub trait ChatLog {
-    async fn new(file: File) -> Self;
+    async fn new(file: File, timezone_offset: Option<i32>) -> Self;
 
     async fn next_post(&mut self) -> Option<Post>;
 }
@@ -100,7 +102,7 @@ pub async fn parse_log(path_to_log: String) -> impl ChatLog {
     let path = Path::new(&path_to_log);
 
     let file = validate_and_open_file(path, Some("fnd_"), None, Some("db")).await;
-    FoundryChatLog::new(file).await
+    FoundryChatLog::new(file, None).await
 }
 
 pub async fn get_random_message(path_to_templates: String) -> String {

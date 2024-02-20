@@ -140,7 +140,7 @@ pub struct FoundryChatLog {
 
 #[async_trait]
 impl ChatLog for FoundryChatLog {
-    async fn new(file: File) -> Self {
+    async fn new(file: File, _: Option<i32>) -> Self {
         let lines = BufReader::new(file).lines();
 
         FoundryChatLog { lines }

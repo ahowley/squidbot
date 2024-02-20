@@ -118,6 +118,22 @@ async fn whosent(
     Ok(())
 }
 
+/// Test get nth post as html from empyrean
+#[poise::command(prefix_command, hide_in_help, category = "Util")]
+async fn test_empyrean(ctx: Context<'_>) -> Result<(), Error> {
+    use parse::ChatLog;
+    let filename = format!("./chatlogs/{}", "r20_a_voyage_through_empyrean.html");
+    let path = std::path::Path::new(&filename);
+    let file = tokio::fs::File::open(path).await.unwrap();
+    let mut log = parse::Roll20ChatLog::new(file, Some(-6)).await;
+    log.next_post().await;
+    log.next_post().await;
+    log.next_post().await;
+    log.next_post().await;
+    log.next_post().await;
+    Ok(())
+}
+
 #[poise::command(slash_command, prefix_command, track_edits, category = "Utility")]
 async fn help(
     ctx: Context<'_>,
@@ -222,6 +238,7 @@ async fn main() {
                 message(),
                 campaignquote(),
                 whosent(),
+                test_empyrean(),
                 help(),
                 register(),
             ],
