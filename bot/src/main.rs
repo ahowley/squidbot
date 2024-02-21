@@ -1,4 +1,4 @@
-use futures::{executor::block_on, future};
+use futures::{executor::block_on, future, Stream, StreamExt};
 use poise::{samples::HelpConfiguration, serenity_prelude as serenity};
 
 mod controllers;
@@ -59,6 +59,39 @@ async fn message(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+async fn autocomplete_campaign<'a>(
+    _ctx: Context<'_>,
+    partial: &'a str,
+) -> impl Stream<Item = String> + 'a {
+    let campaigns = controllers::campaigns().await;
+
+    futures::stream::iter(campaigns)
+        .filter(move |name| futures::future::ready(name.starts_with(partial)))
+        .map(|name| name.to_string())
+}
+
+async fn autocomplete_sender<'a>(
+    _ctx: Context<'_>,
+    partial: &'a str,
+) -> impl Stream<Item = String> + 'a {
+    let senders = controllers::senders().await;
+
+    futures::stream::iter(senders)
+        .filter(move |name| futures::future::ready(name.starts_with(partial)))
+        .map(|name| name.to_string())
+}
+
+async fn autocomplete_player<'a>(
+    _ctx: Context<'_>,
+    partial: &'a str,
+) -> impl Stream<Item = String> + 'a {
+    let players = controllers::players().await;
+
+    futures::stream::iter(players)
+        .filter(move |name| futures::future::ready(name.starts_with(partial)))
+        .map(|name| name.to_string())
+}
+
 fn campaignquote_help() -> String {
     let (mut campaigns, mut senders, mut players) = block_on(async {
         let results = future::join3(
@@ -95,13 +128,13 @@ fn campaignquote_help() -> String {
 async fn campaignquote(
     ctx: Context<'_>,
     #[description = "The name of the campaign you'd like to fetch from!"]
-    #[rest]
+    #[autocomplete = "autocomplete_campaign"]
     campaign: Option<String>,
     #[description = "The name of the sender who sent the message!"]
-    #[rest]
+    #[autocomplete = "autocomplete_sender"]
     sender: Option<String>,
     #[description = "The name of the campaign you'd like to fetch from!"]
-    #[rest]
+    #[autocomplete = "autocomplete_player"]
     player: Option<String>,
 ) -> Result<(), Error> {
     ctx.say(controllers::campaign_quote(campaign, sender, player).await)
