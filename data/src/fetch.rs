@@ -207,8 +207,8 @@ pub async fn trace_message(pool: &Pool<Postgres>, message: &str) -> Option<Vec<M
             JOIN chat_message ON post.id = post_id
             JOIN campaign ON post.campaign_id = campaign.id
         WHERE
-            LOWER( $1 ) LIKE LOWER( content ) AND
-            is_censored IS NOT TRUE"#,
+            LOWER(content) LIKE LOWER( $1 ) AND
+            sender.is_censored IS NOT TRUE"#,
         message
     )
     .fetch_all(pool)
