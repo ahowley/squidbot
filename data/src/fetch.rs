@@ -35,14 +35,36 @@ pub async fn dump_unmapped_senders(config: &Config) -> HashMap<String, Vec<Strin
     let mut unmapped_senders: Vec<UniqueSender> = vec![];
     for (campaign_name, campaign_config) in &config.campaigns {
         let path_to_log = format!("./chatlogs/{}", campaign_config.log);
-        let mut log = parse::parse_log(path_to_log.to_string()).await;
-        while let Some(post) = log.next_post().await {
-            let sender = UniqueSender {
-                sender_name: post.sender_name.clone(),
-                campaign_name: campaign_name.clone(),
-            };
-            if !unmapped_senders.contains(&sender) && !mapped_senders.contains(&sender) {
-                unmapped_senders.push(sender);
+
+        if campaign_config.log.starts_with("fnd_") {
+            let mut log = parse::parse_foundry_log(path_to_log.to_string(), None).await;
+            while let Some(post) = log.next_post().await {
+                let sender = UniqueSender {
+                    sender_name: post.sender_name.clone(),
+                    campaign_name: campaign_name.clone(),
+                };
+                if !unmapped_senders.contains(&sender)
+                    && !mapped_senders.contains(&sender)
+                    && sender.sender_name.len() > 0
+                {
+                    unmapped_senders.push(sender);
+                }
+            }
+        }
+
+        if campaign_config.log.starts_with("r20_") {
+            let mut log = parse::parse_roll20_log(path_to_log.to_string(), None).await;
+            while let Some(post) = log.next_post().await {
+                let sender = UniqueSender {
+                    sender_name: post.sender_name.clone(),
+                    campaign_name: campaign_name.clone(),
+                };
+                if !unmapped_senders.contains(&sender)
+                    && !mapped_senders.contains(&sender)
+                    && sender.sender_name.len() > 0
+                {
+                    unmapped_senders.push(sender);
+                }
             }
         }
     }
@@ -78,13 +100,16 @@ pub async fn fetch_campaign_names(pool: &Pool<Postgres>) -> Vec<String> {
 }
 
 pub async fn fetch_sender_names(pool: &Pool<Postgres>) -> Vec<String> {
-    query!(r#"SELECT sender_name FROM sender"#)
-        .fetch_all(pool)
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|sender| sender.sender_name)
-        .collect()
+    query!(
+        r#"SELECT DISTINCT sender_name FROM sender
+           WHERE is_censored IS NOT true"#
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|sender| sender.sender_name)
+    .collect()
 }
 
 pub async fn fetch_player_names(pool: &Pool<Postgres>) -> Vec<String> {
@@ -99,6 +124,7 @@ pub async fn fetch_player_names(pool: &Pool<Postgres>) -> Vec<String> {
 
 pub async fn fetch_random_chat_message(
     pool: &Pool<Postgres>,
+    config: &Config,
     campaign: &str,
     sender: &str,
     player: &str,
@@ -125,10 +151,27 @@ pub async fn fetch_random_chat_message(
     .map(|message| message.content)
     .collect();
 
-    messages
+    let censored_text: Vec<String> = query!(r#"SELECT avoid_text FROM censor"#)
+        .fetch_all(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|message| message.avoid_text)
+        .collect();
+
+    let mut random_message = messages
         .choose(&mut rand::thread_rng())
         .unwrap_or(&"".to_string())
-        .clone()
+        .clone();
+
+    for censored in censored_text {
+        random_message = random_message.replace(
+            censored.as_str(),
+            config.replace_all_deadnames_with.as_str(),
+        );
+    }
+
+    random_message
 }
 
 pub struct MessageTrace {

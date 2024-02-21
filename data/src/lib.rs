@@ -5,7 +5,7 @@ use parse::{
     ChatLog,
 };
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
-use std::{env, sync::Arc};
+use std::env;
 
 mod fetch;
 mod interface;
@@ -174,12 +174,12 @@ pub async fn update_campaigns<'a, 'tr>(
 }
 
 pub async fn update_posts_from_log(
-    pool: Arc<Pool<Postgres>>,
+    pool: &Pool<Postgres>,
     campaign_name: &str,
-    path_to_log: String,
+    directory: &str,
+    filename: &str,
+    timezone_offset: Option<i32>,
 ) {
-    let mut log = parse::parse_log(path_to_log.to_string()).await;
-
     let campaign_id = query!(
         r#"SELECT id FROM campaign WHERE campaign_name = $1"#,
         campaign_name
@@ -189,13 +189,45 @@ pub async fn update_posts_from_log(
     .expect("failed to fetch campaign id")
     .id;
 
-    while let Some(post) = log.next_post().await {
-        let interface = PostInterface {
-            pool: Arc::clone(&pool),
-            post,
-            campaign_id,
-        };
+    let path_to_log = format!("{directory}/{filename}");
 
-        interface.try_insert().await.unwrap_or(());
+    if filename.starts_with("fnd_") {
+        let mut log = parse::parse_foundry_log(path_to_log.to_string(), timezone_offset).await;
+
+        while let Some(post) = log.next_post().await {
+            let transaction = begin_transaction(&pool).await;
+
+            let mut interface = PostInterface {
+                transaction,
+                post,
+                campaign_id,
+            };
+
+            interface.try_insert().await.unwrap_or(());
+            interface
+                .transaction
+                .commit()
+                .await
+                .expect("failed to commit transaction");
+        }
+    } else {
+        let mut log = parse::parse_roll20_log(path_to_log.to_string(), timezone_offset).await;
+
+        while let Some(post) = log.next_post().await {
+            let transaction = begin_transaction(&pool).await;
+
+            let mut interface = PostInterface {
+                transaction,
+                post,
+                campaign_id,
+            };
+
+            interface.try_insert().await.unwrap_or(());
+            interface
+                .transaction
+                .commit()
+                .await
+                .expect("failed to commit transaction");
+        }
     }
 }

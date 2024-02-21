@@ -1,6 +1,5 @@
 use data::{IdInterface, ShapeInterface};
 use serial_test::serial;
-use std::sync::Arc;
 
 #[tokio::test]
 #[serial]
@@ -447,11 +446,12 @@ async fn update_posts() {
     data::update_campaigns(&mut transaction, &config).await;
     transaction.commit().await.unwrap();
 
-    let shareable_pool = Arc::new(pool);
     data::update_posts_from_log(
-        shareable_pool,
+        &pool,
         "Descent into Avernus",
-        "../test_files/fnd_test_campaign.db".to_string(),
+        "../test_files",
+        "fnd_test_campaign.db",
+        None,
     )
     .await;
 

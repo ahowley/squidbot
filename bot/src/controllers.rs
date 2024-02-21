@@ -18,10 +18,20 @@ pub async fn update_chatlogs() {
         .expect("failed to commit transaction");
 
     for (campaign_name, campaign_config) in &config.campaigns {
+        // TODO: refactor ChatLogs to bake offset into db to avoid the need to check this so much
+        let offset = if campaign_config.log.starts_with("fnd_") {
+            None
+        } else {
+            Some(campaign_config.timezone_offset)
+        };
+
+        println!("Updating campaign: {campaign_name}");
         data::update_posts_from_log(
-            pool.clone(),
+            &pool,
             campaign_name,
-            format!("./chatlogs/{}", campaign_config.log),
+            "./chatlogs",
+            campaign_config.log.as_str(),
+            offset,
         )
         .await;
     }
@@ -64,13 +74,15 @@ pub async fn campaign_quote(
     player: Option<String>,
 ) -> String {
     let pool = data::create_connection_pool("./.env").await;
+    let config = parse::parse_config("./config.json".to_string()).await;
 
     let campaign_name = campaign.unwrap_or("".to_string());
     let sender_name = sender.unwrap_or("".to_string());
     let player_name = player.unwrap_or("".to_string());
 
     let result =
-        data::fetch_random_chat_message(&pool, &campaign_name, &sender_name, &player_name).await;
+        data::fetch_random_chat_message(&pool, &config, &campaign_name, &sender_name, &player_name)
+            .await;
 
     if result.len() > 0 {
         result

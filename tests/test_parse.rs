@@ -14,7 +14,7 @@ async fn parse_config() {
 #[tokio::test]
 async fn parse_foundry_chatlog() {
     let path_to_log = "../test_files/fnd_test_campaign.db".to_string();
-    let mut log = parse::parse_log(path_to_log).await;
+    let mut log = parse::parse_foundry_log(path_to_log, None).await;
 
     let mut posts: Vec<parse::Post> = vec![];
     while let Some(post) = log.next_post().await {

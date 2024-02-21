@@ -20,7 +20,7 @@
   "replace_all_deadnames_with": ":)",
   "campaigns": {
     "Curse of Strahd": {
-      "log": "r20_curse_of_strahd.html",
+      "log": "r20_test_campaign.html",
       "dungeon_master": "Bob",
       "timezone_offset": -6,
       "aliases": [

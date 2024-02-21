@@ -1,6 +1,6 @@
-use std::str::Chars;
-
+use crate::{Roll, RollSingle};
 use rand::Rng;
+use std::str::Chars;
 
 fn roll_dice(number: u32, faces: u32) -> Vec<u32> {
     let mut results: Vec<u32> = Vec::with_capacity(number as usize);
@@ -75,10 +75,6 @@ fn recursive_descent(start_value: f64, operator: char, expr: &mut Chars<'_>) -> 
     let mut parsing_value = String::from("");
     let mut need_op_after_parenthesis = false;
     while let Some(symbol) = expr.next() {
-        if symbol == ' ' {
-            continue;
-        }
-
         if symbol == '(' {
             let mut nested_value = recursive_descent(0., '+', expr)?;
             if parsing_value.len() > 0 {
@@ -125,6 +121,68 @@ fn recursive_descent(start_value: f64, operator: char, expr: &mut Chars<'_>) -> 
     }
 
     evaluate(first_value, parsing_value.parse::<f64>().ok()?, op)
+}
+
+pub fn get_roll_from_expression_and_outcomes(
+    expr: &str,
+    outcomes: Vec<i64>,
+    expr_outcome: f64,
+) -> Option<Roll> {
+    let mut single_rolls: Vec<RollSingle> = vec![];
+    let mut results = outcomes.into_iter();
+
+    let mut num_dice_string = String::from("");
+    let mut parsing_value = String::from("");
+    for symbol in expr.chars() {
+        if symbol == 'd' {
+            num_dice_string.drain(..);
+            num_dice_string.push_str(if parsing_value.len() > 0 {
+                parsing_value.as_str()
+            } else {
+                "1"
+            });
+            parsing_value.drain(..);
+            continue;
+        }
+
+        if symbol.to_digit(10).is_none() {
+            if num_dice_string.len() > 0 {
+                let num_dice = num_dice_string.parse::<i64>().ok()?;
+                if let Some(faces) = parsing_value.parse::<i64>().ok() {
+                    for _ in 0..num_dice {
+                        let outcome = results.next()?;
+                        single_rolls.push(RollSingle { faces, outcome });
+                    }
+                }
+
+                num_dice_string.drain(..);
+            }
+
+            parsing_value.drain(..);
+        } else {
+            parsing_value.push(symbol);
+        }
+    }
+
+    if num_dice_string.len() > 0 {
+        let num_dice = num_dice_string.parse::<i64>().ok()?;
+        let faces = parsing_value.parse::<i64>().ok()?;
+
+        for _ in 0..num_dice {
+            let outcome = results.next()?;
+            single_rolls.push(RollSingle { faces, outcome });
+        }
+
+        num_dice_string.drain(..);
+    }
+
+    let roll = Roll {
+        formula: expr.to_string(),
+        outcome: expr_outcome,
+        single_rolls,
+    };
+
+    Some(roll)
 }
 
 pub fn num_with_thousands_commas(num: u64) -> String {
@@ -240,5 +298,32 @@ mod tests {
         );
         assert!([5., 7., 9.]
             .contains(&recursive_descent(0., '+', &mut "1 + 2d(2.3 / 1) * (2)".chars()).unwrap()));
+    }
+
+    #[test]
+    fn get_rolls_from_expr_and_results() {
+        let roll =
+            get_roll_from_expression_and_outcomes("2d20+(15+0) + 3d6", vec![10, 15, 3, 4, 5], 52.)
+                .unwrap();
+
+        assert_eq!(roll.single_rolls.len(), 5);
+        assert_eq!(roll.single_rolls[0].faces, 20);
+        assert_eq!(roll.single_rolls[0].outcome, 10);
+        assert_eq!(roll.single_rolls[1].outcome, 15);
+        assert_eq!(roll.single_rolls[2].outcome, 3);
+        assert_eq!(roll.single_rolls[3].outcome, 4);
+        assert_eq!(roll.single_rolls[4].outcome, 5);
+        assert_eq!(roll.formula, "2d20+(15+0) + 3d6");
+        assert_eq!(roll.outcome, 52.);
+
+        let roll = get_roll_from_expression_and_outcomes("4d6k3", vec![3, 1, 1, 3], 7.).unwrap();
+        assert_eq!(roll.single_rolls.len(), 4);
+        assert_eq!(roll.single_rolls[0].faces, 6);
+        assert_eq!(roll.single_rolls[0].outcome, 3);
+        assert_eq!(roll.single_rolls[1].outcome, 1);
+        assert_eq!(roll.single_rolls[2].outcome, 1);
+        assert_eq!(roll.single_rolls[3].outcome, 3);
+        assert_eq!(roll.formula, "4d6k3");
+        assert_eq!(roll.outcome, 7.);
     }
 }

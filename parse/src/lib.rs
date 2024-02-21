@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use parse_config::Config;
-pub use parse_dicemath::{dicemath, num_with_thousands_commas};
+pub use parse_dicemath::{
+    dicemath, get_roll_from_expression_and_outcomes, num_with_thousands_commas,
+};
 use parse_foundry::FoundryChatLog;
 use parse_random_message_templates::RandomMessageTemplates;
 pub use parse_roll_20::Roll20ChatLog;
@@ -47,25 +49,19 @@ async fn validate_and_open_file(
     starts_with: Option<&str>,
     contains: Option<&str>,
     extension: Option<&str>,
-) -> File {
+) -> Option<File> {
     let filename = path.file_name().expect("failed to get filename");
     let filename_str = filename.to_str().expect("failed to parse filename to utf8");
 
     if let Some(prefix) = starts_with {
         if !filename_str.starts_with(prefix) {
-            panic!(
-                "filename '{}' doesn't start with the expected prefix '{}'",
-                filename_str, prefix
-            );
+            return None;
         }
     };
 
     if let Some(substring) = contains {
         if !filename_str.contains(substring) {
-            panic!(
-                "filename '{}' doesn't contain expected substring '{}'",
-                filename_str, substring
-            );
+            return None;
         }
     };
 
@@ -75,22 +71,21 @@ async fn validate_and_open_file(
             .expect("failed to parse file extension to utf8")
             != suffix
         {
-            panic!(
-                "filename '{}' doesn't end with expected file extension '{}'",
-                filename_str, suffix
-            );
+            return None;
         }
     };
 
-    File::open(path).await.expect(&format!(
+    Some(File::open(path).await.expect(&format!(
         "couldn't find or failed to open file '{}'",
         filename_str
-    ))
+    )))
 }
 
 pub async fn parse_config(path_to_config: String) -> Config {
     let path_to_config = Path::new(&path_to_config);
-    let mut file = validate_and_open_file(path_to_config, None, Some("config"), Some("json")).await;
+    let mut file = validate_and_open_file(path_to_config, None, Some("config"), Some("json"))
+        .await
+        .unwrap();
     let mut config_json = String::new();
     file.read_to_string(&mut config_json)
         .await
@@ -100,18 +95,35 @@ pub async fn parse_config(path_to_config: String) -> Config {
         .expect("failed to parse config.json - see README or config.example.json for help")
 }
 
-pub async fn parse_log(path_to_log: String) -> impl ChatLog {
+pub async fn parse_foundry_log(path_to_log: String, timezone_offset: Option<i32>) -> impl ChatLog {
     let path = Path::new(&path_to_log);
+    let file = validate_and_open_file(path, Some("fnd_"), None, Some("db"))
+        .await
+        .expect(
+            "wrong filename format for foundry log - see README or config.example.json for help",
+        );
 
-    let file = validate_and_open_file(path, Some("fnd_"), None, Some("db")).await;
-    FoundryChatLog::new(file, None).await
+    FoundryChatLog::new(file, timezone_offset).await
+}
+
+pub async fn parse_roll20_log(path_to_log: String, timezone_offset: Option<i32>) -> impl ChatLog {
+    let path = Path::new(&path_to_log);
+    let file = validate_and_open_file(path, Some("r20_"), None, Some("html"))
+        .await
+        .expect(
+            "wrong filename format for roll20 log - see README or config.example.json for help",
+        );
+
+    Roll20ChatLog::new(file, timezone_offset).await
 }
 
 pub async fn get_random_message(path_to_templates: String) -> String {
     let path = Path::new(&path_to_templates);
 
     let mut file =
-        validate_and_open_file(path, None, Some("random_message_templates"), Some("json")).await;
+        validate_and_open_file(path, None, Some("random_message_templates"), Some("json"))
+            .await
+            .unwrap();
     let mut templates_json = String::new();
     file.read_to_string(&mut templates_json)
         .await

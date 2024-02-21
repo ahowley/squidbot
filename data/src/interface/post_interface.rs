@@ -1,25 +1,21 @@
-use crate::begin_transaction;
 use parse::Post;
-use sqlx::{query, Pool, Postgres};
-use std::sync::Arc;
+use sqlx::{query, Postgres};
 
-pub struct PostInterface {
-    pub pool: Arc<Pool<Postgres>>,
+pub struct PostInterface<'a> {
+    pub transaction: sqlx::Transaction<'a, Postgres>,
     pub post: Post,
     pub campaign_id: i32,
 }
 
-impl PostInterface {
-    pub async fn try_insert(&self) -> sqlx::Result<()> {
+impl<'a> PostInterface<'a> {
+    pub async fn try_insert(&mut self) -> sqlx::Result<()> {
         let sender_id = query!(
             r#"SELECT id FROM sender WHERE sender_name = $1"#,
             self.post.sender_name,
         )
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *self.transaction)
         .await?
         .id;
-
-        let mut transaction = begin_transaction(&self.pool).await;
 
         let id = query!(
             r#"INSERT INTO post (id, campaign_id, sender_id, timestamp_sent)
@@ -30,7 +26,7 @@ impl PostInterface {
             sender_id,
             self.post.datetime,
         )
-        .fetch_one(&mut *transaction)
+        .fetch_one(&mut *self.transaction)
         .await?
         .id;
 
@@ -41,7 +37,7 @@ impl PostInterface {
                 id,
                 self.post.content_raw,
             )
-            .execute(&mut *transaction)
+            .execute(&mut *self.transaction)
             .await?;
         }
 
@@ -54,7 +50,7 @@ impl PostInterface {
                 roll.formula,
                 roll.outcome,
             )
-            .fetch_one(&mut *transaction)
+            .fetch_one(&mut *self.transaction)
             .await?
             .id;
 
@@ -66,12 +62,11 @@ impl PostInterface {
                     single_roll.faces,
                     single_roll.outcome,
                 )
-                .execute(&mut *transaction)
+                .execute(&mut *self.transaction)
                 .await?;
             }
         }
 
-        transaction.commit().await?;
         Ok(())
     }
 }
