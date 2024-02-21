@@ -154,7 +154,7 @@ async fn whosent(
 }
 
 /// See the context around a message! A message's ID will show up when you use "/whosent".
-#[poise::command(slash_command, aliases("ws"), category = "Fun")]
+#[poise::command(slash_command, aliases("a"), category = "Fun")]
 async fn around(
     ctx: Context<'_>,
     #[description = "The message ID to see around"] message_id: String,
