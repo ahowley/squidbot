@@ -344,6 +344,25 @@ async fn event_handler(
         serenity::FullEvent::Ready { data_about_bot, .. } => {
             println!("Logged in as {}", data_about_bot.user.name);
         }
+        serenity::FullEvent::ReactionAdd { add_reaction } => {
+            if add_reaction.user(ctx).await?.id == ctx.cache.current_user().id {
+                return Ok(());
+            }
+            let message = add_reaction.message(ctx).await?;
+            let emoji = &add_reaction.emoji;
+            match emoji {
+                serenity::ReactionType::Unicode(content) => {
+                    if content == "🦑" {
+                        println!("Responding to squid reaction");
+                        message.react(ctx, emoji.clone()).await?;
+                    }
+                }
+                serenity::ReactionType::Custom { id, name, .. } => {
+                    println!("{}, {:#?}", id, name)
+                }
+                _ => (),
+            }
+        }
         serenity::FullEvent::Message { new_message } => {
             if let Some(replied_to) = &new_message.referenced_message {
                 if new_message.content.starts_with(".whosent")
