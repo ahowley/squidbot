@@ -175,7 +175,9 @@ pub async fn fetch_random_chat_message(
 }
 
 pub struct MessageTrace {
+    id: String,
     sender_name: String,
+    is_censored: bool,
     player_name: String,
     campaign_name: String,
     timestamp_sent: DateTime<Utc>,
@@ -188,18 +190,27 @@ impl Display for MessageTrace {
         let offset_timezone = self.timestamp_sent + fixed_offset;
         let date = offset_timezone.date_naive().format("%m/%d/%Y");
         let time = offset_timezone.time().format("%-I:%M %p");
-        write!(
-            f,
-            "'{}' ({}) sent this on {} at {} in their \"{}\" campaign",
-            self.sender_name, self.player_name, date, time, self.campaign_name
-        )
+
+        if self.is_censored {
+            write!(
+                f,
+                "{} sent this on {} at {} in their \"{}\" campaign [{}]",
+                self.player_name, date, time, self.campaign_name, self.id
+            )
+        } else {
+            write!(
+                f,
+                "{} ('{}') sent this on {} at {} in their \"{}\" campaign [{}]",
+                self.player_name, self.sender_name, date, time, self.campaign_name, self.id
+            )
+        }
     }
 }
 
 pub async fn trace_message(pool: &Pool<Postgres>, message: &str) -> Option<Vec<MessageTrace>> {
     let results: Vec<MessageTrace> = query_as!(
         MessageTrace,
-        r#"SELECT sender_name, player_name, campaign_name, timestamp_sent, timezone_offset
+        r#"SELECT post.id, sender_name, is_censored, player_name, campaign_name, timestamp_sent, timezone_offset
         FROM alias
             JOIN sender ON alias.sender_id = sender.id
             JOIN player ON player_id = player.id
@@ -207,8 +218,7 @@ pub async fn trace_message(pool: &Pool<Postgres>, message: &str) -> Option<Vec<M
             JOIN chat_message ON post.id = post_id
             JOIN campaign ON post.campaign_id = campaign.id
         WHERE
-            LOWER(content) LIKE LOWER( $1 ) AND
-            sender.is_censored IS NOT TRUE"#,
+            LOWER(content) LIKE LOWER( $1 )"#,
         message
     )
     .fetch_all(pool)

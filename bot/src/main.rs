@@ -122,6 +122,17 @@ async fn whosent(
     Ok(())
 }
 
+/// Echo content of a message
+#[poise::command(context_menu_command = "Who Sent")]
+pub async fn whosent_context(
+    ctx: Context<'_>,
+    #[description = "Message to echo (enter a link or ID)"] msg: serenity::Message,
+) -> Result<(), Error> {
+    let reply = controllers::who_sent(msg.content).await;
+    ctx.say(reply).await?;
+    Ok(())
+}
+
 /// Roll some dice or do some math (or both!)
 #[poise::command(
     slash_command,
@@ -289,6 +300,7 @@ async fn main() {
                 message(),
                 campaignquote(),
                 whosent(),
+                whosent_context(),
                 roll(),
                 odds(),
                 odds_precise(),
