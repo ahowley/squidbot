@@ -215,7 +215,8 @@ I'd estimate {player_name}'s luck to be about {}% of perfect.",
         (num_beat as f64 / num_rolled as f64 * 10000.).round() / 100.,
         parse::num_with_thousands_commas(num_tied),
         (num_tied as f64 / num_rolled as f64 * 10000.).round() / 100.,
-        (((num_beat as f64 / num_rolled as f64) + (num_tied as f64 / num_rolled as f64 / 2.))
+        100. - (((num_beat as f64 / num_rolled as f64)
+            + (num_tied as f64 / num_rolled as f64 / 2.))
             * 10000.)
             .round()
             / 100.
