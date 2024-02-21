@@ -194,14 +194,14 @@ impl Display for MessageTrace {
         if self.is_censored {
             write!(
                 f,
-                "{} sent this on {} at {} in their \"{}\" campaign [{}]",
-                self.player_name, date, time, self.campaign_name, self.id
+                "Message ID: {}\n{} sent this on {} at {} in \"{}\"",
+                self.id, self.player_name, date, time, self.campaign_name
             )
         } else {
             write!(
                 f,
-                "{} ('{}') sent this on {} at {} in their \"{}\" campaign [{}]",
-                self.player_name, self.sender_name, date, time, self.campaign_name, self.id
+                "Message ID: {}\n{} ('{}') sent this on {} at {} in \"{}\"",
+                self.id, self.player_name, self.sender_name, date, time, self.campaign_name
             )
         }
     }
