@@ -224,6 +224,7 @@ dependencies = [
  "futures",
  "parse",
  "poise",
+ "rand",
  "rayon",
  "tokio",
 ]

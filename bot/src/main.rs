@@ -242,6 +242,52 @@ async fn odds_precise(
     Ok(())
 }
 
+fn luck_help() -> String {
+    let mut players = block_on(async { controllers::players().await });
+
+    players.sort_unstable_by(|a, b| a.cmp(&b));
+    format!(
+        "Here's a list of all the players I know about:\n```\n{}```",
+        players.join(", ")
+    )
+}
+
+/// Find out whether I'm luckier than a given player!
+#[poise::command(
+    slash_command,
+    aliases("l"),
+    help_text_fn = "luck_help",
+    category = "Fun"
+)]
+async fn luck(
+    ctx: Context<'_>,
+    #[description = "The player to compete with"]
+    #[autocomplete = "autocomplete_player"]
+    player: String,
+) -> Result<(), Error> {
+    ctx.say(controllers::simulate(player.as_str(), 1).await)
+        .await?;
+    Ok(())
+}
+
+/// Simulate every dice roll a player has made 100 times to TRULY find out how lucky they are.
+#[poise::command(
+    prefix_command,
+    aliases("s"),
+    help_text_fn = "luck_help",
+    category = "Fun"
+)]
+async fn simulate(
+    ctx: Context<'_>,
+    #[description = "The name of the player to compete with"] player: String,
+) -> Result<(), Error> {
+    ctx.say("I'm working on it - this may take a while 👀")
+        .await?;
+    ctx.say(controllers::simulate(player.as_str(), 1000).await)
+        .await?;
+    Ok(())
+}
+
 #[poise::command(slash_command, prefix_command, track_edits, category = "Utility")]
 async fn help(
     ctx: Context<'_>,
@@ -362,6 +408,8 @@ async fn main() {
                 roll(),
                 odds(),
                 odds_precise(),
+                luck(),
+                simulate(),
                 help(),
                 register(),
             ],

@@ -1,3 +1,4 @@
+use rand::seq::SliceRandom;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::sync::Arc;
 
@@ -162,5 +163,61 @@ pub async fn odds(expr: &str, val: f64, num_rolls: u64) -> String {
         parse::num_with_thousands_commas(num_rolls as u64),
         parse::num_with_thousands_commas(results.len() as u64),
         results.len() as f64 / (num_rolls as f64) * 100.
+    )
+}
+
+pub async fn simulate(player_name: &str, num_repetitions: i32) -> String {
+    let pool = data::create_connection_pool("./.env").await;
+    let all_pronouns = data::fetch_player_pronouns(&pool, player_name).await;
+    let pronouns = all_pronouns.choose(&mut rand::thread_rng()).unwrap();
+
+    let rolls = data::fetch_all_single_rolls(&pool, player_name).await;
+
+    if rolls.len() == 0 {
+        return "Sorry, I couldn't find any rolls for {player_name}!".to_string();
+    }
+
+    let mut num_rolled: u64 = 0;
+    let mut num_beat: u64 = 0;
+    let mut num_tied: u64 = 0;
+
+    for parse::RollSingle { faces, outcome } in rolls {
+        let results = (0..num_repetitions)
+            .into_par_iter()
+            .filter_map(|_| {
+                let result = parse::dicemath(format!("1d{faces}").as_str())?;
+                if result > outcome as f64 {
+                    Some(true)
+                } else if result == outcome as f64 {
+                    Some(false)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<bool>>();
+
+        let ties: Vec<&bool> = results.iter().filter(|res| !**res).collect();
+
+        num_rolled += num_repetitions as u64;
+        num_tied += ties.len() as u64;
+        num_beat += results.len() as u64 - ties.len() as u64;
+    }
+
+    format!(
+        "\
+I rolled every dice {player_name} has ever rolled {num_repetitions} time(s) each.
+Out of {} rolls total, I beat {} {} times, or about {}% of the time.
+We tied {} times, or about {}% of the time.
+I'd estimate {player_name}'s luck to be about {}% of perfect.",
+        parse::num_with_thousands_commas(num_rolled),
+        pronouns[1],
+        parse::num_with_thousands_commas(num_beat),
+        (num_beat as f64 / num_rolled as f64 * 10000.).round() / 100.,
+        parse::num_with_thousands_commas(num_tied),
+        (num_tied as f64 / num_rolled as f64 * 10000.).round() / 100.,
+        (((num_beat as f64 / num_rolled as f64) + (num_tied as f64 / num_rolled as f64 / 2.))
+            * 10000.)
+            .round()
+            / 100.
     )
 }

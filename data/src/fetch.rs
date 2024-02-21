@@ -1,4 +1,4 @@
-use parse::{parse_config::Config, ChatLog};
+use parse::{parse_config::Config, ChatLog, RollSingle};
 use rand::seq::SliceRandom;
 use sqlx::{
     query, query_as,
@@ -120,6 +120,48 @@ pub async fn fetch_player_names(pool: &Pool<Postgres>) -> Vec<String> {
         .into_iter()
         .map(|player| player.player_name)
         .collect()
+}
+
+pub async fn fetch_player_pronouns(pool: &Pool<Postgres>, player_name: &str) -> Vec<[String; 4]> {
+    query!(
+        r#"SELECT subj, obj, poss_pres, poss_past FROM pronouns
+            JOIN pronouns_map ON pronouns.id = pronouns_id
+            JOIN player ON player_id = player.id
+        WHERE
+            player_name = $1"#,
+        player_name
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|pronouns| {
+        [
+            pronouns.subj,
+            pronouns.obj,
+            pronouns.poss_pres,
+            pronouns.poss_past,
+        ]
+    })
+    .collect()
+}
+
+pub async fn fetch_all_single_rolls(pool: &Pool<Postgres>, player_name: &str) -> Vec<RollSingle> {
+    query_as!(
+        RollSingle,
+        r#"SELECT faces, roll_single.outcome FROM roll_single
+            JOIN roll ON roll_single.roll_id = roll.id
+            JOIN post ON roll.post_id = post.id
+            JOIN sender ON post.sender_id = sender.id
+            JOIN alias ON sender.id = alias.sender_id
+            JOIN player ON alias.player_id = player.id
+        WHERE
+            player_name = $1"#,
+        player_name
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or(vec![])
 }
 
 pub async fn fetch_random_chat_message(
