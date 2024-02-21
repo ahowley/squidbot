@@ -357,9 +357,6 @@ async fn event_handler(
                         message.react(ctx, emoji.clone()).await?;
                     }
                 }
-                serenity::ReactionType::Custom { id, name, .. } => {
-                    println!("{}, {:#?}", id, name)
-                }
                 _ => (),
             }
         }
