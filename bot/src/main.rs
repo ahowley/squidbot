@@ -270,7 +270,7 @@ async fn luck(
     Ok(())
 }
 
-/// Simulate every dice roll a player has made 100 times to TRULY find out how lucky they are.
+/// Simulate every dice roll a player has made 1000 times to TRULY find out how lucky they are.
 #[poise::command(
     prefix_command,
     aliases("s"),
