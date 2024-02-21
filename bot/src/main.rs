@@ -163,7 +163,7 @@ async fn odds(
 }
 
 /// Get an estimated odds of rolling a certain result (out of 100 million rolls).
-#[poise::command(slash_command, prefix_command, aliases("op"), category = "Nerd")]
+#[poise::command(prefix_command, aliases("op"), category = "Nerd")]
 async fn odds_precise(
     ctx: Context<'_>,
     #[description = "The outcome of the roll"] result: String,
