@@ -270,7 +270,7 @@ async fn luck(
     Ok(())
 }
 
-/// Simulate every dice roll a player has made 1000 times to TRULY find out how lucky they are.
+/// Simulate every dice roll a player has made 10,000 times to TRULY find out how lucky they are.
 #[poise::command(
     prefix_command,
     aliases("s"),
@@ -283,7 +283,7 @@ async fn simulate(
 ) -> Result<(), Error> {
     ctx.say("I'm working on it - this may take a while 👀")
         .await?;
-    ctx.say(controllers::simulate(player.as_str(), 1000).await)
+    ctx.say(controllers::simulate(player.as_str(), 10_000).await)
         .await?;
     Ok(())
 }
