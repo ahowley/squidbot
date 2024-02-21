@@ -110,6 +110,31 @@ pub async fn who_sent(message: String) -> String {
     return format!("Sorry - I couldn't find '`{}`' in the database!", message);
 }
 
+pub async fn around(message_id: String, num_around: i32) -> String {
+    let pool = data::create_connection_pool("./.env").await;
+    let config = parse::parse_config("./config.json".to_string()).await;
+
+    if let Some(results) =
+        data::trace_around_message(&pool, &config, message_id.as_str(), num_around).await
+    {
+        let mut response = format!("Here's the context:\n\n");
+        response.push_str(
+            &results
+                .into_iter()
+                .map(|trace| format!("```{trace}```"))
+                .collect::<Vec<String>>()
+                .join("\n"),
+        );
+
+        return response;
+    }
+
+    return format!(
+        "Sorry - I couldn't find '`{}`' in the database!",
+        message_id
+    );
+}
+
 pub async fn roll(expr: &str) -> String {
     let result = parse::dicemath(expr);
 

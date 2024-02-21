@@ -146,11 +146,25 @@ async fn campaignquote(
 #[poise::command(slash_command, aliases("ws"), category = "Fun")]
 async fn whosent(
     ctx: Context<'_>,
-    #[description = "The message to search for"]
-    #[rest]
-    message: String,
+    #[description = "The message to search for"] message: String,
 ) -> Result<(), Error> {
     let reply = controllers::who_sent(message).await;
+    ctx.say(reply).await?;
+    Ok(())
+}
+
+/// See the context around a message! A message's ID will show up when you use "/whosent".
+#[poise::command(slash_command, aliases("ws"), category = "Fun")]
+async fn around(
+    ctx: Context<'_>,
+    #[description = "The message ID to see around"] message_id: String,
+
+    #[description = "The number of messages to see before and after this message (to a max of 10)"]
+    #[min = 1]
+    #[max = 10]
+    num_around: Option<i32>,
+) -> Result<(), Error> {
+    let reply = controllers::around(message_id, num_around.unwrap_or(1)).await;
     ctx.say(reply).await?;
     Ok(())
 }
@@ -345,6 +359,7 @@ async fn main() {
                 campaignquote(),
                 whosent(),
                 whosent_context(),
+                around(),
                 roll(),
                 odds(),
                 odds_precise(),

@@ -231,3 +231,177 @@ pub async fn trace_message(pool: &Pool<Postgres>, message: &str) -> Option<Vec<M
 
     Some(results)
 }
+
+pub struct FullMessageTrace {
+    sender_name: String,
+    is_censored: bool,
+    player_name: String,
+    campaign_name: String,
+    timestamp_sent: DateTime<Utc>,
+    timezone_offset: i32,
+    content: String,
+}
+
+impl Display for FullMessageTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let fixed_offset = FixedOffset::east_opt(self.timezone_offset * 3600).unwrap();
+        let offset_timezone = self.timestamp_sent + fixed_offset;
+        let date = offset_timezone.date_naive().format("%m/%d/%Y");
+        let time = offset_timezone.time().format("%-I:%M %p");
+
+        if self.is_censored {
+            write!(
+                f,
+                "{} sent this on {} at {} in \"{}\":\n{}",
+                self.player_name, date, time, self.campaign_name, self.content
+            )
+        } else {
+            write!(
+                f,
+                "{} ('{}') sent this on {} at {} in \"{}\":\n{}",
+                self.player_name, self.sender_name, date, time, self.campaign_name, self.content
+            )
+        }
+    }
+}
+
+pub async fn trace_around_message(
+    pool: &Pool<Postgres>,
+    config: &Config,
+    message_id: &str,
+    num_around: i32,
+) -> Option<Vec<FullMessageTrace>> {
+    let campaign_id = query!(
+        r#"SELECT campaign.id FROM post
+            JOIN campaign ON campaign_id = campaign.id
+        WHERE
+            post.id = $1"#,
+        message_id
+    )
+    .fetch_one(pool)
+    .await
+    .ok()?
+    .id;
+
+    let results: Vec<FullMessageTrace> = query!(
+        r#"SELECT
+            sender_name,
+            is_censored,
+            player_name,
+            campaign_name,
+            timestamp_sent,
+            timezone_offset,
+            content
+        FROM (
+            SELECT
+                sender_name,
+                is_censored,
+                player_name,
+                campaign_name,
+                timestamp_sent,
+                timezone_offset,
+                content
+            FROM alias
+                JOIN sender ON alias.sender_id = sender.id
+                JOIN player ON player_id = player.id
+                JOIN post ON sender.id = post.sender_id
+                JOIN chat_message ON post.id = post_id
+                JOIN campaign ON post.campaign_id = campaign.id
+            WHERE timestamp_sent <= (
+                SELECT timestamp_sent
+                FROM post
+                WHERE id = $1
+                ORDER BY timestamp_sent ASC
+                LIMIT 1
+            )
+            AND campaign.id = $2
+            ORDER BY timestamp_sent DESC
+            LIMIT 1 + $3
+        )
+        UNION
+        (
+            SELECT
+                sender_name,
+                is_censored,
+                player_name,
+                campaign_name,
+                timestamp_sent,
+                timezone_offset,
+                content
+            FROM alias
+                JOIN sender ON alias.sender_id = sender.id
+                JOIN player ON player_id = player.id
+                JOIN post ON sender.id = post.sender_id
+                JOIN chat_message ON post.id = post_id
+                JOIN campaign ON post.campaign_id = campaign.id
+            WHERE timestamp_sent > (
+                SELECT timestamp_sent
+                FROM post
+                WHERE id = $1
+                ORDER BY timestamp_sent ASC
+                LIMIT 1
+            )
+            AND campaign.id = $2
+            ORDER BY timestamp_sent ASC
+            LIMIT $3
+        )
+        ORDER BY timestamp_sent ASC"#,
+        message_id,
+        campaign_id,
+        num_around as i64
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or(vec![])
+    .into_iter()
+    .map(|rec| FullMessageTrace {
+        sender_name: rec.sender_name.unwrap(),
+        is_censored: rec.is_censored.unwrap(),
+        player_name: rec.player_name.unwrap(),
+        campaign_name: rec.campaign_name.unwrap(),
+        timestamp_sent: rec.timestamp_sent.unwrap(),
+        timezone_offset: rec.timezone_offset.unwrap(),
+        content: rec.content.unwrap(),
+    })
+    .collect();
+
+    let censored_text: Vec<String> = query!(r#"SELECT avoid_text FROM censor"#)
+        .fetch_all(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|message| message.avoid_text)
+        .collect();
+
+    let censored_results: Vec<FullMessageTrace> = results
+        .into_iter()
+        .map(|trace| {
+            let censored_in_content: Vec<&String> = censored_text
+                .iter()
+                .filter(|text| {
+                    trace
+                        .content
+                        .to_lowercase()
+                        .contains(text.to_lowercase().as_str())
+                })
+                .collect();
+
+            let mut censored_result = trace.content;
+            for censored in censored_in_content {
+                censored_result =
+                    censored_result.replace(censored, config.replace_all_deadnames_with.as_str());
+            }
+
+            FullMessageTrace {
+                content: censored_result,
+                ..trace
+            }
+        })
+        .collect();
+
+    if censored_results.len() == 0 {
+        return None;
+    }
+
+    Some(censored_results)
+}
