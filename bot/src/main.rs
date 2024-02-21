@@ -60,7 +60,7 @@ async fn message(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 fn campaignquote_help() -> String {
-    let (campaigns, senders, players) = block_on(async {
+    let (mut campaigns, mut senders, mut players) = block_on(async {
         let results = future::join3(
             controllers::campaigns(),
             controllers::senders(),
@@ -69,6 +69,10 @@ fn campaignquote_help() -> String {
         .await;
         results
     });
+
+    campaigns.sort_unstable_by(|a, b| a.cmp(&b));
+    senders.sort_unstable_by(|a, b| a.cmp(&b));
+    players.sort_unstable_by(|a, b| a.cmp(&b));
     format!(
         "Here's a list of all the campaigns I know about:\n```\n{}```
         
