@@ -266,6 +266,17 @@ async fn event_handler(
                     new_message
                         .reply(ctx, controllers::campaign_quote(None, None, None).await)
                         .await?;
+                } else if new_message
+                    .mentions
+                    .iter()
+                    .map(|user| user.id)
+                    .collect::<Vec<serenity::UserId>>()
+                    .contains(&ctx.cache.current_user().id)
+                {
+                    println!("Executing response to bot mention in reply");
+                    new_message
+                        .reply(ctx, controllers::campaign_quote(None, None, None).await)
+                        .await?;
                 }
             } else if new_message
                 .mentions
