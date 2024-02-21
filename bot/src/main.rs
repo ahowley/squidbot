@@ -158,9 +158,9 @@ async fn whosent(
 async fn around(
     ctx: Context<'_>,
     #[description = "The message ID to see around"] message_id: String,
-    #[description = "The number of messages to see before and after this message (to a max of 10)"]
+    #[description = "The number of messages to see before and after this message (to a max of 5)"]
     #[min = 1]
-    #[max = 10]
+    #[max = 5]
     num_around: Option<i32>,
 ) -> Result<(), Error> {
     let reply = controllers::around(message_id, num_around.unwrap_or(1)).await;
