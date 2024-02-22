@@ -153,6 +153,37 @@ async fn whosent(
     Ok(())
 }
 
+/// whosent command in context menu
+#[poise::command(context_menu_command = "Who Sent")]
+pub async fn whosent_context(ctx: Context<'_>, msg: serenity::Message) -> Result<(), Error> {
+    let reply = controllers::who_sent(msg.content).await;
+    ctx.say(reply).await?;
+    Ok(())
+}
+
+/// Search for any text in a message! You can also send ".search" when replying to a message.
+#[poise::command(slash_command, category = "Fun")]
+async fn search(
+    ctx: Context<'_>,
+    #[description = "The message to search for"] message: String,
+    #[description = "The maximum number of results (up to 10)"]
+    #[min = 1]
+    #[max = 10]
+    limit: Option<i32>,
+) -> Result<(), Error> {
+    let reply = controllers::search(message, limit).await;
+    ctx.say(reply).await?;
+    Ok(())
+}
+
+/// search command in context menu
+#[poise::command(context_menu_command = "Search Message")]
+pub async fn search_context(ctx: Context<'_>, msg: serenity::Message) -> Result<(), Error> {
+    let reply = controllers::search(msg.content, None).await;
+    ctx.say(reply).await?;
+    Ok(())
+}
+
 /// See the context around a message! A message's ID will show up when you use "/whosent".
 #[poise::command(slash_command, aliases("a"), category = "Fun")]
 async fn around(
@@ -164,17 +195,6 @@ async fn around(
     num_around: Option<i32>,
 ) -> Result<(), Error> {
     let reply = controllers::around(message_id, num_around.unwrap_or(1)).await;
-    ctx.say(reply).await?;
-    Ok(())
-}
-
-/// Echo content of a message
-#[poise::command(context_menu_command = "Who Sent")]
-pub async fn whosent_context(
-    ctx: Context<'_>,
-    #[description = "Message to echo (enter a link or ID)"] msg: serenity::Message,
-) -> Result<(), Error> {
-    let reply = controllers::who_sent(msg.content).await;
     ctx.say(reply).await?;
     Ok(())
 }
@@ -403,6 +423,11 @@ async fn event_handler(
                     let search_message = &replied_to.content;
                     let reply = controllers::who_sent(search_message.clone()).await;
                     new_message.reply(ctx, reply).await?;
+                } else if new_message.content.starts_with(".search") {
+                    println!("Executing response to search reply");
+                    let search_message = &replied_to.content;
+                    let reply = controllers::search(search_message.clone(), None).await;
+                    new_message.reply(ctx, reply).await?;
                 } else if &replied_to.author.id == &ctx.cache.current_user().id {
                     println!("Executing response to bot reply");
                     new_message
@@ -454,6 +479,8 @@ async fn main() {
                 campaignquote(),
                 whosent(),
                 whosent_context(),
+                search(),
+                search_context(),
                 around(),
                 roll(),
                 odds(),

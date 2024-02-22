@@ -109,7 +109,30 @@ pub async fn who_sent(message: String) -> String {
         return response;
     }
 
-    return format!("Sorry - I couldn't find '`{}`' in the database!", message);
+    return format!("Sorry - I couldn't find '`{}`'!", message);
+}
+
+pub async fn search(message: String, limit: Option<i32>) -> String {
+    let limit = limit.unwrap_or(5);
+    let pool = data::create_connection_pool("./.env").await;
+
+    if let Some(results) = data::search_for_message(&pool, &message, limit).await {
+        let mut response = format!(
+            "Here's up to {limit} messages that include '`{}`':\n\n",
+            message
+        );
+        response.push_str(
+            &results
+                .into_iter()
+                .map(|trace| format!("```{trace}```"))
+                .collect::<Vec<String>>()
+                .join("\n"),
+        );
+
+        return response;
+    }
+
+    return format!("Sorry - I couldn't find '`{}`' in any messages!", message);
 }
 
 pub async fn around(message_id: String, num_around: i32) -> String {
@@ -131,10 +154,7 @@ pub async fn around(message_id: String, num_around: i32) -> String {
         return response;
     }
 
-    return format!(
-        "Sorry - I couldn't find '`{}`' in the database!",
-        message_id
-    );
+    return format!("Sorry - I couldn't find '`{}`'!", message_id);
 }
 
 pub async fn roll(expr: &str) -> String {
@@ -160,7 +180,9 @@ pub async fn odds(expr: &str, val: f64, num_rolls: u64) -> String {
         .collect();
 
     format!(
-        "Out of `{}` rolls of `{expr}`, I rolled a `{val}` or higher a total of `{}` times.\n\nMy estimated odds of rolling a `{val}` or higher is about `{}`%!",
+        "\
+Out of `{}` rolls of `{expr}`, I rolled a `{val}` or higher a total of `{}` times.
+My estimated odds of rolling a `{val}` or higher is about `{}`%!",
         parse::num_with_thousands_commas(num_rolls as u64),
         parse::num_with_thousands_commas(results.len() as u64),
         results.len() as f64 / (num_rolls as f64) * 100.
@@ -260,7 +282,7 @@ pub async fn worst_roll(precise: bool) -> String {
             },
         )
         .collect();
-    odds.sort_unstable_by(|a, b| {
+    odds.sort_by(|a, b| {
         let odds_1 = a.6;
         let odds_2 = b.6;
 
@@ -320,7 +342,7 @@ pub async fn best_roll(precise: bool) -> String {
             },
         )
         .collect();
-    odds.sort_unstable_by(|a, b| {
+    odds.sort_by(|a, b| {
         let odds_1 = a.6;
         let odds_2 = b.6;
 

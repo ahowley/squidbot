@@ -293,8 +293,74 @@ pub async fn trace_message(pool: &Pool<Postgres>, message: &str) -> Option<Vec<M
             JOIN chat_message ON post.id = post_id
             JOIN campaign ON post.campaign_id = campaign.id
         WHERE
-            LOWER(content) LIKE LOWER( $1 )"#,
-        message
+            LOWER(content) = LOWER( $1 )"#,
+        message.trim()
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or(vec![]);
+
+    if results.len() == 0 {
+        return None;
+    }
+
+    Some(results)
+}
+
+pub struct SearchedMessageTrace {
+    id: String,
+    sender_name: String,
+    is_censored: bool,
+    player_name: String,
+    campaign_name: String,
+    timestamp_sent: DateTime<Utc>,
+    timezone_offset: i32,
+    content: String,
+}
+
+impl Display for SearchedMessageTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let fixed_offset = FixedOffset::east_opt(self.timezone_offset * 3600).unwrap();
+        let offset_timezone = self.timestamp_sent + fixed_offset;
+        let date = offset_timezone.date_naive().format("%m/%d/%Y");
+        let time = offset_timezone.time().format("%-I:%M %p");
+
+        if self.is_censored {
+            write!(
+                f,
+                "Message ID: {}\n{} in {} [{} {}]: {}",
+                self.id, self.player_name, self.campaign_name, date, time, self.content
+            )
+        } else {
+            write!(
+                f,
+                "Message ID: {}\n{} in {} [{} {}]: {}",
+                self.id, self.sender_name, self.campaign_name, date, time, self.content
+            )
+        }
+    }
+}
+
+pub async fn search_for_message(
+    pool: &Pool<Postgres>,
+    message: &str,
+    limit: i32,
+) -> Option<Vec<SearchedMessageTrace>> {
+    let results: Vec<SearchedMessageTrace> = query_as!(
+        SearchedMessageTrace,
+        r#"SELECT post.id, sender_name, is_censored, player_name, campaign_name, timestamp_sent, timezone_offset, content
+        FROM alias
+            JOIN sender ON alias.sender_id = sender.id
+            JOIN player ON player_id = player.id
+            JOIN post ON sender.id = post.sender_id
+            JOIN chat_message ON post.id = post_id
+            JOIN campaign ON post.campaign_id = campaign.id
+        WHERE
+            LOWER(content) LIKE '%' || LOWER( $1 ) || '%'
+        ORDER BY
+            timestamp_sent DESC
+        LIMIT $2"#,
+        message.trim(), limit as i64
     )
     .fetch_all(pool)
     .await
@@ -333,7 +399,7 @@ impl Display for FullMessageTrace {
         } else {
             write!(
                 f,
-                "{} ('{}') sent this on {} at {} in \"{}\":\n{}",
+                "{} '{}' sent this on {} at {} in \"{}\":\n{}",
                 self.player_name, self.sender_name, date, time, self.campaign_name, self.content
             )
         }
@@ -385,7 +451,7 @@ pub async fn trace_around_message(
             WHERE timestamp_sent <= (
                 SELECT timestamp_sent
                 FROM post
-                WHERE id = $1
+                WHERE id LIKE '%' || $1 || '%'
                 ORDER BY timestamp_sent ASC
                 LIMIT 1
             )
@@ -412,7 +478,7 @@ pub async fn trace_around_message(
             WHERE timestamp_sent > (
                 SELECT timestamp_sent
                 FROM post
-                WHERE id = $1
+                WHERE id LIKE '%' || $1 || '%'
                 ORDER BY timestamp_sent ASC
                 LIMIT 1
             )
@@ -421,7 +487,7 @@ pub async fn trace_around_message(
             LIMIT $3
         )
         ORDER BY timestamp_sent ASC"#,
-        message_id,
+        message_id.trim(),
         campaign_id,
         num_around as i64
     )
