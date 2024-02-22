@@ -292,7 +292,7 @@ async fn simulate(
 #[poise::command(prefix_command, aliases("cn1"), category = "Fun")]
 async fn cosmicnat1(ctx: Context<'_>) -> Result<(), Error> {
     ctx.say("If you insist... gimme a sec.").await?;
-    ctx.say(controllers::worst_roll().await).await?;
+    ctx.say(controllers::worst_roll(false).await).await?;
     Ok(())
 }
 
@@ -300,7 +300,25 @@ async fn cosmicnat1(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(prefix_command, aliases("cn20"), category = "Fun")]
 async fn cosmicnat20(ctx: Context<'_>) -> Result<(), Error> {
     ctx.say("Okay, gimme a sec!").await?;
-    ctx.say(controllers::best_roll().await).await?;
+    ctx.say(controllers::best_roll(false).await).await?;
+    Ok(())
+}
+
+/// The (extremely) slow, but more precise, version of .cosmicnat1
+#[poise::command(prefix_command, aliases("cn1p"), category = "Fun")]
+async fn cosmicnat1_precise(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("If you insist... this is gonna take a minute. I would appreciate some space.")
+        .await?;
+    ctx.say(controllers::worst_roll(true).await).await?;
+    Ok(())
+}
+
+/// The (extremely) slow, but more precise, version of .cosmicnat20
+#[poise::command(prefix_command, aliases("cn20p"), category = "Fun")]
+async fn cosmicnat20_precise(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("Okay, this is where the fun begins! You'll need to give me... a minute or two.")
+        .await?;
+    ctx.say(controllers::best_roll(true).await).await?;
     Ok(())
 }
 
@@ -444,6 +462,8 @@ async fn main() {
                 simulate(),
                 cosmicnat1(),
                 cosmicnat20(),
+                cosmicnat1_precise(),
+                cosmicnat20_precise(),
                 help(),
                 register(),
             ],

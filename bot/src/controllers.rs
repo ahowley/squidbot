@@ -224,19 +224,20 @@ I'd estimate {player_name}'s luck to be about {}% of perfect.",
     )
 }
 
-pub async fn worst_roll() -> String {
-    let num_trials: usize = 1000;
+// TODO: Refactor worst_roll & best_roll shared behavior
+pub async fn worst_roll(precise: bool) -> String {
+    let num_trials: usize = if precise { 100_000 } else { 1000 };
 
     let pool = data::create_connection_pool("./.env").await;
     let all_rolls = data::fetch_all_parseable_rolls(&pool).await;
     let mut odds: Vec<_> = all_rolls
-        .into_iter()
+        .into_par_iter()
         .map(
             |(player_name, campaign_name, formula, outcome, timestamp_sent, timezone_offset)| {
                 let cmp_outcome = outcome + 1.;
 
                 let results: Vec<bool> = (0..num_trials)
-                    .into_par_iter()
+                    .into_iter()
                     .filter_map(|_| {
                         let result = parse::dicemath(formula.as_str())?;
                         if result >= cmp_outcome {
@@ -286,17 +287,17 @@ The worst single roll anyone has ever rolled was from {player_name} in \"{campai
 They rolled `{formula}` and got a `{outcome}`, which I estimated to have a `{:?}`% chance of being this bad.", odds_this_bad)
 }
 
-pub async fn best_roll() -> String {
-    let num_trials: usize = 1000;
+pub async fn best_roll(precise: bool) -> String {
+    let num_trials: usize = if precise { 100_000 } else { 1000 };
 
     let pool = data::create_connection_pool("./.env").await;
     let all_rolls = data::fetch_all_parseable_rolls(&pool).await;
     let mut odds: Vec<_> = all_rolls
-        .into_iter()
+        .into_par_iter()
         .map(
             |(player_name, campaign_name, formula, outcome, timestamp_sent, timezone_offset)| {
                 let results: Vec<bool> = (0..num_trials)
-                    .into_par_iter()
+                    .into_iter()
                     .filter_map(|_| {
                         let result = parse::dicemath(formula.as_str())?;
                         if result >= outcome {
