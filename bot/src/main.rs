@@ -288,6 +288,22 @@ async fn simulate(
     Ok(())
 }
 
+/// Search for the worst roll in all of history.
+#[poise::command(prefix_command, aliases("cn1"), category = "Fun")]
+async fn cosmicnat1(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("If you insist... gimme a sec.").await?;
+    ctx.say(controllers::worst_roll().await).await?;
+    Ok(())
+}
+
+/// Search for greatest roll of all time.
+#[poise::command(prefix_command, aliases("cn20"), category = "Fun")]
+async fn cosmicnat20(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("Okay, gimme a sec!").await?;
+    ctx.say(controllers::best_roll().await).await?;
+    Ok(())
+}
+
 #[poise::command(slash_command, prefix_command, track_edits, category = "Utility")]
 async fn help(
     ctx: Context<'_>,
@@ -426,6 +442,8 @@ async fn main() {
                 odds_precise(),
                 luck(),
                 simulate(),
+                cosmicnat1(),
+                cosmicnat20(),
                 help(),
                 register(),
             ],

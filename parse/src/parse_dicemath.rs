@@ -2,10 +2,15 @@ use crate::{Roll, RollSingle};
 use rand::Rng;
 use std::str::Chars;
 
-fn roll_dice(number: u32, faces: u32) -> Vec<u32> {
-    let mut results: Vec<u32> = Vec::with_capacity(number as usize);
+fn roll_dice(number: u32, faces: u32, is_negative: bool) -> Vec<i64> {
+    let mut results: Vec<i64> = Vec::with_capacity(number as usize);
     for _ in 0..number {
-        results.push(rand::thread_rng().gen_range(1..faces + 1));
+        let positive = rand::thread_rng().gen_range(1..faces + 1) as i64;
+        if is_negative {
+            results.push(0 - positive);
+        } else {
+            results.push(positive);
+        }
     }
 
     results
@@ -49,18 +54,22 @@ fn evaluate(value1: f64, value2: f64, op: char) -> Option<f64> {
         'd' => {
             if value2.abs().round() == 1. {
                 Some(value1 * value2)
-            } else if value1.round() > u32::MAX.into()
+            } else if value1.abs().round() > u32::MAX.into()
                 || value2.round() > u32::MAX.into()
-                || value1.round() < 0.
+                || value1.abs().round() == 0.
                 || value2.round() <= 0.
             {
                 None
             } else {
                 Some(
-                    roll_dice(value1.round() as u32, value2.round() as u32)
-                        .into_iter()
-                        .map(|val| val as u64)
-                        .sum::<u64>() as f64,
+                    roll_dice(
+                        value1.abs().round() as u32,
+                        value2.round() as u32,
+                        value1 < 0.,
+                    )
+                    .into_iter()
+                    .map(|val| val)
+                    .sum::<i64>() as f64,
                 )
             }
         }
@@ -74,10 +83,37 @@ fn recursive_descent(start_value: f64, operator: char, expr: &mut Chars<'_>) -> 
     let mut first_value = start_value;
     let mut parsing_value = String::from("");
     let mut need_op_after_parenthesis = false;
+    let mut inside_square_brackets = false;
     while let Some(symbol) = expr.next() {
+        if symbol == '[' {
+            inside_square_brackets = true;
+            continue;
+        }
+
+        if symbol == ']' {
+            inside_square_brackets = false;
+            continue;
+        }
+
+        if inside_square_brackets {
+            continue;
+        }
+
+        if symbol == '-' && parsing_value.len() == 0 {
+            parsing_value.push(symbol);
+            continue;
+        }
+
+        if symbol == 'd' && parsing_value.len() == 0 {
+            parsing_value.push('1');
+        }
+
         if symbol == '(' {
             let mut nested_value = recursive_descent(0., '+', expr)?;
             if parsing_value.len() > 0 {
+                if (parsing_value) == "-" {
+                    parsing_value.push('1');
+                }
                 nested_value = evaluate(parsing_value.parse::<f64>().ok()?, nested_value, '*')?;
             }
 
@@ -93,7 +129,8 @@ fn recursive_descent(start_value: f64, operator: char, expr: &mut Chars<'_>) -> 
         if let Some(next_precedence) = get_precedence(symbol) {
             need_op_after_parenthesis = false;
             if parsing_value.len() == 0 {
-                return None;
+                op = symbol;
+                continue;
             }
 
             if next_precedence > current_precedence {
@@ -114,13 +151,33 @@ fn recursive_descent(start_value: f64, operator: char, expr: &mut Chars<'_>) -> 
         }
 
         if need_op_after_parenthesis {
-            return None;
+            need_op_after_parenthesis = false;
+            let mult_prec = get_precedence('*').unwrap();
+
+            if mult_prec > current_precedence {
+                let mut appended_string = String::new();
+                appended_string.push(symbol);
+                appended_string.push_str(expr.collect::<String>().as_str());
+                let mut appended_expr = appended_string.chars();
+                let parsed_value =
+                    recursive_descent(parsing_value.parse::<f64>().ok()?, '*', &mut appended_expr)?;
+                return evaluate(first_value, parsed_value, op);
+            }
+
+            first_value = evaluate(first_value, parsing_value.parse::<f64>().ok()?, op)?;
+            parsing_value.drain(..);
+            op = '*';
+            current_precedence = get_precedence(op)?;
         }
 
         parsing_value.push(symbol);
     }
 
-    evaluate(first_value, parsing_value.parse::<f64>().ok()?, op)
+    if parsing_value.len() > 0 {
+        evaluate(first_value, parsing_value.parse::<f64>().ok()?, op)
+    } else {
+        Some(first_value)
+    }
 }
 
 pub fn get_roll_from_expression_and_outcomes(
@@ -136,11 +193,12 @@ pub fn get_roll_from_expression_and_outcomes(
     for symbol in expr.chars() {
         if symbol == 'd' {
             num_dice_string.drain(..);
-            num_dice_string.push_str(if parsing_value.len() > 0 {
+            let val_to_push = if parsing_value.len() > 0 {
                 parsing_value.as_str()
             } else {
                 "1"
-            });
+            };
+            num_dice_string.push_str(val_to_push);
             parsing_value.drain(..);
             continue;
         }
@@ -197,6 +255,7 @@ pub fn num_with_thousands_commas(num: u64) -> String {
 }
 
 pub fn dicemath(expr: &str) -> Option<f64> {
+    let expr = expr.replace("cs>20", "").replace("cs>19", "");
     let result = recursive_descent(0., '+', &mut expr.chars())?;
 
     Some(result)
@@ -250,7 +309,10 @@ mod tests {
 
     #[test]
     fn parse_flat() {
-        assert!(recursive_descent(0., '+', &mut "1 ++ 1".chars()).is_none());
+        assert_eq!(
+            recursive_descent(0., '+', &mut "1 ++ 1".chars()).unwrap(),
+            2.
+        );
         assert_eq!(
             recursive_descent(0., '+', &mut "1 + 1".chars()).unwrap(),
             2.
@@ -302,6 +364,13 @@ mod tests {
 
     #[test]
     fn get_rolls_from_expr_and_results() {
+        let roll = get_roll_from_expression_and_outcomes("d20", vec![10], 10.).unwrap();
+        assert_eq!(roll.single_rolls.len(), 1);
+        assert_eq!(roll.single_rolls[0].faces, 20);
+        assert_eq!(roll.single_rolls[0].outcome, 10);
+        assert_eq!(roll.formula, "d20");
+        assert_eq!(roll.outcome, 10.);
+
         let roll =
             get_roll_from_expression_and_outcomes("2d20+(15+0) + 3d6", vec![10, 15, 3, 4, 5], 52.)
                 .unwrap();

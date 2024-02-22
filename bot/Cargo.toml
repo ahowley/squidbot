@@ -14,3 +14,4 @@ parse = { path = "../parse" }
 data = { path = "../data" }
 rayon = "1.8.1"
 rand = "0.8.5"
+sqlx = { version = "0.7", features = [ "chrono" ] }

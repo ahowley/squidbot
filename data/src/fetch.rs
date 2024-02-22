@@ -164,6 +164,39 @@ pub async fn fetch_all_single_rolls(pool: &Pool<Postgres>, player_name: &str) ->
     .unwrap_or(vec![])
 }
 
+pub async fn fetch_all_parseable_rolls(
+    pool: &Pool<Postgres>,
+) -> Vec<(String, String, String, f64, DateTime<Utc>, i32)> {
+    query!(
+        r#"SELECT player_name, campaign_name, formula, outcome, timestamp_sent, timezone_offset FROM roll
+            JOIN post ON roll.post_id = post.id
+            JOIN sender ON post.sender_id = sender.id
+            JOIN campaign ON sender.campaign_id = campaign.id
+            JOIN alias ON sender.id = alias.sender_id
+            JOIN player ON alias.player_id = player.id
+        WHERE
+            formula NOT LIKE '%k%' AND
+            formula NOT LIKE '%ro%' AND
+            formula NOT LIKE '%dF%' AND
+            formula LIKE '%d%'"#
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or(vec![])
+    .into_iter()
+    .map(|rec| {
+        (
+            rec.player_name,
+            rec.campaign_name,
+            rec.formula,
+            rec.outcome,
+            rec.timestamp_sent,
+            rec.timezone_offset
+        )
+    })
+    .collect()
+}
+
 pub async fn fetch_random_chat_message(
     pool: &Pool<Postgres>,
     config: &Config,

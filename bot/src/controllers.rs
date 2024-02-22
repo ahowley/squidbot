@@ -1,5 +1,6 @@
 use rand::seq::SliceRandom;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use sqlx::types::chrono::FixedOffset;
 use std::sync::Arc;
 
 pub async fn message() -> String {
@@ -221,4 +222,126 @@ I'd estimate {player_name}'s luck to be about {}% of perfect.",
             .round()
             / 100.
     )
+}
+
+pub async fn worst_roll() -> String {
+    let num_trials: usize = 1000;
+
+    let pool = data::create_connection_pool("./.env").await;
+    let all_rolls = data::fetch_all_parseable_rolls(&pool).await;
+    let mut odds: Vec<_> = all_rolls
+        .into_iter()
+        .map(
+            |(player_name, campaign_name, formula, outcome, timestamp_sent, timezone_offset)| {
+                let cmp_outcome = outcome + 1.;
+
+                let results: Vec<bool> = (0..num_trials)
+                    .into_par_iter()
+                    .filter_map(|_| {
+                        let result = parse::dicemath(formula.as_str())?;
+                        if result >= cmp_outcome {
+                            Some(true)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                (
+                    player_name,
+                    campaign_name,
+                    formula,
+                    outcome,
+                    timestamp_sent,
+                    timezone_offset,
+                    100. - results.len() as f64 / num_trials as f64 * 100.,
+                )
+            },
+        )
+        .collect();
+    odds.sort_unstable_by(|a, b| {
+        let odds_1 = a.6;
+        let odds_2 = b.6;
+
+        odds_1.total_cmp(&odds_2)
+    });
+
+    let (
+        player_name,
+        campaign_name,
+        formula,
+        outcome,
+        timestamp_sent,
+        timezone_offset,
+        odds_this_bad,
+    ) = &odds[0];
+
+    let fixed_offset = FixedOffset::east_opt(timezone_offset * 3600).unwrap();
+    let offset_timezone = *timestamp_sent + fixed_offset;
+    let date = offset_timezone.date_naive().format("%m/%d/%Y");
+    let time = offset_timezone.time().format("%-I:%M %p");
+
+    format!("\
+The worst single roll anyone has ever rolled was from {player_name} in \"{campaign_name}\" on {date} at {time}.
+They rolled `{formula}` and got a `{outcome}`, which I estimated to have a `{:?}`% chance of being this bad.", odds_this_bad)
+}
+
+pub async fn best_roll() -> String {
+    let num_trials: usize = 1000;
+
+    let pool = data::create_connection_pool("./.env").await;
+    let all_rolls = data::fetch_all_parseable_rolls(&pool).await;
+    let mut odds: Vec<_> = all_rolls
+        .into_iter()
+        .map(
+            |(player_name, campaign_name, formula, outcome, timestamp_sent, timezone_offset)| {
+                let results: Vec<bool> = (0..num_trials)
+                    .into_par_iter()
+                    .filter_map(|_| {
+                        let result = parse::dicemath(formula.as_str())?;
+                        if result >= outcome {
+                            Some(true)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                (
+                    player_name,
+                    campaign_name,
+                    formula,
+                    outcome,
+                    timestamp_sent,
+                    timezone_offset,
+                    results.len() as f64 / num_trials as f64 * 100.,
+                )
+            },
+        )
+        .collect();
+    odds.sort_unstable_by(|a, b| {
+        let odds_1 = a.6;
+        let odds_2 = b.6;
+
+        odds_1.total_cmp(&odds_2)
+    });
+
+    let (
+        player_name,
+        campaign_name,
+        formula,
+        outcome,
+        timestamp_sent,
+        timezone_offset,
+        odds_this_good,
+    ) = odds[0].clone();
+
+    let fixed_offset = FixedOffset::east_opt(timezone_offset * 3600).unwrap();
+    let offset_timezone = timestamp_sent + fixed_offset;
+    let date = offset_timezone.date_naive().format("%m/%d/%Y");
+    let time = offset_timezone.time().format("%-I:%M %p");
+
+    format!("\
+The best single roll ever recorded was from {player_name} in \"{campaign_name}\" on {date} at {time}.
+They rolled `{formula}` and got a `{outcome}`, which I estimated to have a `{:?}`% chance of being this good.", odds_this_good)
 }

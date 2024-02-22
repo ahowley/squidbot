@@ -226,6 +226,7 @@ dependencies = [
  "poise",
  "rand",
  "rayon",
+ "sqlx",
  "tokio",
 ]
 
