@@ -115,8 +115,9 @@ pub async fn who_sent(message: String) -> String {
 pub async fn search(message: String, limit: Option<i32>) -> String {
     let limit = limit.unwrap_or(5);
     let pool = data::create_connection_pool("./.env").await;
+    let config = parse::parse_config("./config.json".to_string()).await;
 
-    if let Some(results) = data::search_for_message(&pool, &message, limit).await {
+    if let Some(results) = data::search_for_message(&pool, &config, &message, limit).await {
         let mut response = format!(
             "Here's up to {limit} messages that include '`{}`':\n\n",
             message

@@ -343,6 +343,7 @@ impl Display for SearchedMessageTrace {
 
 pub async fn search_for_message(
     pool: &Pool<Postgres>,
+    config: &Config,
     message: &str,
     limit: i32,
 ) -> Option<Vec<SearchedMessageTrace>> {
@@ -370,7 +371,46 @@ pub async fn search_for_message(
         return None;
     }
 
-    Some(results)
+    let censored_text: Vec<String> = query!(r#"SELECT avoid_text FROM censor"#)
+        .fetch_all(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|message| message.avoid_text)
+        .collect();
+
+    let censored_results: Vec<SearchedMessageTrace> = results
+        .into_iter()
+        .map(|trace| {
+            let censored_in_content: Vec<&String> = censored_text
+                .iter()
+                .filter(|text| {
+                    trace
+                        .content
+                        .to_lowercase()
+                        .contains(text.to_lowercase().as_str())
+                })
+                .collect();
+
+            let mut censored_result = trace.content;
+            if censored_in_content.len() > 0 {
+                censored_result = censored_result.to_lowercase();
+                for censored in censored_in_content {
+                    censored_result = censored_result.replace(
+                        censored.to_lowercase().as_str(),
+                        config.replace_all_deadnames_with.as_str(),
+                    );
+                }
+            }
+
+            SearchedMessageTrace {
+                content: censored_result,
+                ..trace
+            }
+        })
+        .collect();
+
+    Some(censored_results)
 }
 
 pub struct FullMessageTrace {
@@ -528,9 +568,14 @@ pub async fn trace_around_message(
                 .collect();
 
             let mut censored_result = trace.content;
-            for censored in censored_in_content {
-                censored_result =
-                    censored_result.replace(censored, config.replace_all_deadnames_with.as_str());
+            if censored_in_content.len() > 0 {
+                censored_result = censored_result.to_lowercase();
+                for censored in censored_in_content {
+                    censored_result = censored_result.replace(
+                        censored.to_lowercase().as_str(),
+                        config.replace_all_deadnames_with.as_str(),
+                    );
+                }
             }
 
             FullMessageTrace {
