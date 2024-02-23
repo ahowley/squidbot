@@ -101,7 +101,7 @@ pub async fn who_sent(message: String) -> String {
         response.push_str(
             &results
                 .into_iter()
-                .map(|trace| format!("```{trace}```"))
+                .map(|trace| format!("```{}```", trace.as_message(true, false)))
                 .collect::<Vec<String>>()
                 .join("\n"),
         );
@@ -125,7 +125,7 @@ pub async fn search(message: String, limit: Option<i32>) -> String {
         response.push_str(
             &results
                 .into_iter()
-                .map(|trace| format!("```{trace}```"))
+                .map(|trace| format!("```{}```", trace.as_message(true, true)))
                 .collect::<Vec<String>>()
                 .join("\n"),
         );
@@ -147,7 +147,7 @@ pub async fn around(message_id: String, num_around: i32) -> String {
         response.push_str(
             &results
                 .into_iter()
-                .map(|trace| format!("```{trace}```"))
+                .map(|trace| format!("```{}```", trace.as_message(false, true)))
                 .collect::<Vec<String>>()
                 .join("\n"),
         );

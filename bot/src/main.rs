@@ -372,9 +372,6 @@ You can edit your `.help` message and I'll edit my response.";
 }
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
-    // This is our custom error handler
-    // They are many errors that can occur, so we only handle the ones we want to customize
-    // and forward the rest to the default handler
     match error {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
         poise::FrameworkError::Command { error, ctx, .. } => {
@@ -415,6 +412,12 @@ async fn event_handler(
             }
         }
         serenity::FullEvent::Message { new_message } => {
+            let bot_mentioned = new_message
+                .mentions
+                .iter()
+                .map(|user| user.id)
+                .collect::<Vec<serenity::UserId>>()
+                .contains(&ctx.cache.current_user().id);
             if let Some(replied_to) = &new_message.referenced_message {
                 if new_message.content.starts_with(".whosent")
                     || new_message.content.starts_with(".ws")
@@ -428,30 +431,13 @@ async fn event_handler(
                     let search_message = &replied_to.content;
                     let reply = controllers::search(search_message.clone(), None).await;
                     new_message.reply(ctx, reply).await?;
-                } else if &replied_to.author.id == &ctx.cache.current_user().id {
+                } else if &replied_to.author.id == &ctx.cache.current_user().id || bot_mentioned {
                     println!("Executing response to bot reply");
                     new_message
                         .reply(ctx, controllers::campaign_quote(None, None, None).await)
                         .await?;
-                } else if new_message
-                    .mentions
-                    .iter()
-                    .map(|user| user.id)
-                    .collect::<Vec<serenity::UserId>>()
-                    .contains(&ctx.cache.current_user().id)
-                {
-                    println!("Executing response to bot mention in reply");
-                    new_message
-                        .reply(ctx, controllers::campaign_quote(None, None, None).await)
-                        .await?;
                 }
-            } else if new_message
-                .mentions
-                .iter()
-                .map(|user| user.id)
-                .collect::<Vec<serenity::UserId>>()
-                .contains(&ctx.cache.current_user().id)
-            {
+            } else if bot_mentioned {
                 println!("Executing response to bot mention");
                 new_message
                     .reply(ctx, controllers::campaign_quote(None, None, None).await)
