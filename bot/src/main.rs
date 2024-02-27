@@ -95,27 +95,18 @@ async fn autocomplete_player<'a>(
 }
 
 fn campaignquote_help() -> String {
-    let (mut campaigns, mut senders, mut players) = block_on(async {
-        let results = future::join3(
-            controllers::campaigns(),
-            controllers::senders(),
-            controllers::players(),
-        )
-        .await;
+    let (mut campaigns, mut players) = block_on(async {
+        let results = future::join(controllers::campaigns(), controllers::players()).await;
         results
     });
 
     campaigns.sort_unstable_by(|a, b| a.cmp(&b));
-    senders.sort_unstable_by(|a, b| a.cmp(&b));
     players.sort_unstable_by(|a, b| a.cmp(&b));
     format!(
         "Here's a list of all the campaigns I know about:\n```\n{}```
         
-        Here's a list of all the senders I know about:\n```\n{}```
-        
         Here's a list of all the players I know about:\n```\n{}```",
         campaigns.join(", "),
-        senders.join(", "),
         players.join(", ")
     )
 }
