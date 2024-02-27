@@ -39,20 +39,34 @@ pub async fn update_chatlogs() {
     }
 }
 
-pub async fn dump_unmapped_senders() -> String {
+pub async fn dump_unmapped_senders() -> Vec<String> {
     let config = parse::parse_config("./config.json".to_string()).await;
     let senders_map = data::dump_unmapped_senders(&config).await;
+    let mut messages: Vec<String> = vec![];
     let mut message = "```".to_string();
 
     for (campaign, senders) in senders_map {
+        if message.len() + campaign.len() + "----------------\n".len() > 1800 {
+            message.push_str("```");
+            messages.push(message.clone());
+            message.drain(..);
+            message.push_str("```");
+        }
         message.push_str(&format!("--------{campaign}--------\n"));
         for sender in senders {
+            if message.len() + sender.len() + "\"\"\n".len() > 1800 {
+                message.push_str("```");
+                messages.push(message.clone());
+                message.drain(..);
+                message.push_str("```");
+            }
             message.push_str(&format!("\"{sender}\",\n"));
         }
     }
     message.push_str("```");
+    messages.push(message);
 
-    message
+    messages
 }
 
 pub async fn campaigns() -> Vec<String> {

@@ -3,19 +3,23 @@ use parse_config::Config;
 pub use parse_dicemath::{
     dicemath, get_roll_from_expression_and_outcomes, num_with_thousands_commas,
 };
+use parse_fantasy_grounds::FantasyGroundsChatLog;
 use parse_foundry::FoundryChatLog;
 use parse_random_message_templates::RandomMessageTemplates;
-pub use parse_roll_20::Roll20ChatLog;
+use parse_roll_20::Roll20ChatLog;
 use rand::seq::SliceRandom;
 use sqlx::types::chrono::{DateTime, FixedOffset};
 use std::path::Path;
 use tokio::{fs::File, io::AsyncReadExt};
+pub use util::*;
 
 pub mod parse_config;
 mod parse_dicemath;
+mod parse_fantasy_grounds;
 mod parse_foundry;
 mod parse_random_message_templates;
 mod parse_roll_20;
+pub mod util;
 
 pub struct RollSingle {
     pub faces: i64,
@@ -95,8 +99,8 @@ pub async fn parse_config(path_to_config: String) -> Config {
         .expect("failed to parse config.json - see README or config.example.json for help")
 }
 
-pub async fn parse_foundry_log(path_to_log: String, timezone_offset: Option<i32>) -> impl ChatLog {
-    let path = Path::new(&path_to_log);
+pub async fn parse_foundry_log(path_to_log: &str, timezone_offset: Option<i32>) -> impl ChatLog {
+    let path = Path::new(path_to_log);
     let file = validate_and_open_file(path, Some("fnd_"), None, Some("db"))
         .await
         .expect(
@@ -106,8 +110,8 @@ pub async fn parse_foundry_log(path_to_log: String, timezone_offset: Option<i32>
     FoundryChatLog::new(file, timezone_offset).await
 }
 
-pub async fn parse_roll20_log(path_to_log: String, timezone_offset: Option<i32>) -> impl ChatLog {
-    let path = Path::new(&path_to_log);
+pub async fn parse_roll20_log(path_to_log: &str, timezone_offset: Option<i32>) -> impl ChatLog {
+    let path = Path::new(path_to_log);
     let file = validate_and_open_file(path, Some("r20_"), None, Some("html"))
         .await
         .expect(
@@ -115,6 +119,20 @@ pub async fn parse_roll20_log(path_to_log: String, timezone_offset: Option<i32>)
         );
 
     Roll20ChatLog::new(file, timezone_offset).await
+}
+
+pub async fn parse_fantasy_grounds_log(
+    path_to_log: &str,
+    timezone_offset: Option<i32>,
+) -> impl ChatLog {
+    let path = Path::new(path_to_log);
+    let file = validate_and_open_file(path, Some("fg_"), None, Some("html"))
+        .await
+        .expect(
+            "wrong filename format for fantasy grounds log - see README or config.example.json for help",
+        );
+
+    FantasyGroundsChatLog::new(file, timezone_offset).await
 }
 
 pub async fn get_random_message(path_to_templates: String) -> String {

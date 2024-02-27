@@ -5,7 +5,7 @@ use parse::{
     ChatLog,
 };
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
-use std::env;
+use std::{collections::HashSet, env};
 
 mod fetch;
 mod interface;
@@ -173,6 +173,7 @@ pub async fn update_campaigns<'a, 'tr>(
     }
 }
 
+// TODO: Ensure there's no way to improve this code with better polymorphism
 pub async fn update_posts_from_log(
     pool: &Pool<Postgres>,
     campaign_name: &str,
@@ -184,17 +185,45 @@ pub async fn update_posts_from_log(
         r#"SELECT id FROM campaign WHERE campaign_name = $1"#,
         campaign_name
     )
-    .fetch_one(&*pool)
+    .fetch_one(pool)
     .await
     .expect("failed to fetch campaign id")
     .id;
 
+    let already_parsed_ids_result = query!(
+        r#"SELECT post.id FROM post
+            JOIN campaign ON campaign_id = campaign.id
+        WHERE
+            campaign.id = $1"#,
+        campaign_id
+    )
+    .fetch_all(pool)
+    .await;
+
+    let already_parsed_ids: Vec<String> = if already_parsed_ids_result.is_err() {
+        vec![]
+    } else {
+        already_parsed_ids_result
+            .unwrap()
+            .into_iter()
+            .map(|rec| rec.id)
+            .collect()
+    };
+    let mut already_parsed_hash = HashSet::new();
+    for id in already_parsed_ids {
+        already_parsed_hash.insert(id);
+    }
+
     let path_to_log = format!("{directory}/{filename}");
 
     if filename.starts_with("fnd_") {
-        let mut log = parse::parse_foundry_log(path_to_log.to_string(), timezone_offset).await;
+        let mut log = parse::parse_foundry_log(&path_to_log, timezone_offset).await;
 
         while let Some(post) = log.next_post().await {
+            if already_parsed_hash.contains(&post.id) {
+                continue;
+            }
+
             let transaction = begin_transaction(&pool).await;
 
             let mut interface = PostInterface {
@@ -210,10 +239,37 @@ pub async fn update_posts_from_log(
                 .await
                 .expect("failed to commit transaction");
         }
-    } else {
-        let mut log = parse::parse_roll20_log(path_to_log.to_string(), timezone_offset).await;
+    } else if filename.starts_with("r20_") {
+        let mut log = parse::parse_roll20_log(&path_to_log, timezone_offset).await;
 
         while let Some(post) = log.next_post().await {
+            if already_parsed_hash.contains(&post.id) {
+                continue;
+            }
+
+            let transaction = begin_transaction(&pool).await;
+
+            let mut interface = PostInterface {
+                transaction,
+                post,
+                campaign_id,
+            };
+
+            interface.try_insert().await.unwrap_or(());
+            interface
+                .transaction
+                .commit()
+                .await
+                .expect("failed to commit transaction");
+        }
+    } else if filename.starts_with("fg_") {
+        let mut log = parse::parse_foundry_log(&path_to_log, timezone_offset).await;
+
+        while let Some(post) = log.next_post().await {
+            if already_parsed_hash.contains(&post.id) {
+                continue;
+            }
+
             let transaction = begin_transaction(&pool).await;
 
             let mut interface = PostInterface {

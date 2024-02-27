@@ -1,4 +1,4 @@
-use crate::{get_roll_from_expression_and_outcomes, ChatLog, Post, Roll};
+use crate::{get_roll_from_expression_and_outcomes, trim_whitespace, ChatLog, Post, Roll};
 use async_trait::async_trait;
 use scraper::{html::Select, ElementRef, Html, Selector};
 use sqlx::types::chrono::{DateTime, FixedOffset, NaiveTime};
@@ -14,15 +14,9 @@ const TIME_STRP_STRF: &'static str = "%I:%M%p %z";
 const DIV_OPEN: &'static str = "<div";
 const DIV_CLOSE: &'static str = "</div";
 
-fn trim_whitespace(s: &str) -> String {
-    let mut new_str = s.trim().to_owned();
-    let mut prev = ' '; // The initial value doesn't really matter
-    new_str.retain(|ch| {
-        let result = ch != ' ' || prev != ' ';
-        prev = ch;
-        result
-    });
-    new_str
+fn fragment_is_private(fragment: &Html) -> bool {
+    let private_message_selector = Selector::parse(".message.private").unwrap();
+    fragment.select(&private_message_selector).next().is_some()
 }
 
 fn try_get_roll_from_plain(
@@ -123,18 +117,17 @@ pub struct Roll20ChatLog {
 }
 
 impl Roll20ChatLog {
-    async fn post_from_current_message_html(&mut self) -> Option<Post> {
-        let fragment = Html::parse_fragment(self.current_message_html.as_str());
-        let private_message_selector = Selector::parse(".message.private").unwrap();
-        let general_message_selector = Selector::parse(".message.general").unwrap();
-        let full_message_selector = Selector::parse(".message").unwrap();
+    fn try_update_last_parsed_sender_name(&mut self, fragment: &Html) {
         let sender_selector = Selector::parse(".by").unwrap();
-        let timestamp_selector = Selector::parse(".tstamp").unwrap();
 
         if let Some(sender_elem) = fragment.select(&sender_selector).next() {
             let sender_raw = sender_elem.text().collect::<Vec<&str>>().join("");
             self.last_parsed_sender_name = Some(sender_raw.strip_suffix(":").unwrap().to_string());
         }
+    }
+
+    fn try_update_last_parsed_datetime(&mut self, fragment: &Html) {
+        let timestamp_selector = Selector::parse(".tstamp").unwrap();
 
         if let Some(timestamp_elem) = fragment.select(&timestamp_selector).next() {
             let mut ts_text = timestamp_elem.text().collect::<Vec<&str>>().join("");
@@ -152,9 +145,17 @@ impl Roll20ChatLog {
                 self.last_parsed_datetime = Some(timestamp + offset_s);
             }
         }
+    }
 
-        let is_private_message = fragment.select(&private_message_selector).next().is_some();
-        if is_private_message {
+    fn post_from_current_message_html(&mut self) -> Option<Post> {
+        let fragment = Html::parse_fragment(self.current_message_html.as_str());
+        let general_message_selector = Selector::parse(".message.general").unwrap();
+        let full_message_selector = Selector::parse(".message").unwrap();
+
+        self.try_update_last_parsed_sender_name(&fragment);
+        self.try_update_last_parsed_datetime(&fragment);
+
+        if fragment_is_private(&fragment) {
             return None;
         }
 
@@ -203,7 +204,7 @@ impl ChatLog for Roll20ChatLog {
             0
         };
 
-        Roll20ChatLog {
+        Self {
             timezone_offset: offset,
             div_depth: -1,
             current_message_html: String::from(""),
@@ -247,7 +248,7 @@ impl ChatLog for Roll20ChatLog {
                         }
 
                         if self.div_depth == 0 {
-                            let post = self.post_from_current_message_html().await;
+                            let post = self.post_from_current_message_html();
                             self.current_message_html.drain(..);
                             if post.is_some() {
                                 return post;

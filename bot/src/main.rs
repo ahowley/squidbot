@@ -36,8 +36,10 @@ async fn update_chatlogs(ctx: Context<'_>) -> Result<(), Error> {
 )]
 async fn dump_unmapped_senders(ctx: Context<'_>) -> Result<(), Error> {
     ctx.say("Collecting senders...").await?;
-    let message = controllers::dump_unmapped_senders().await;
-    ctx.say(message).await?;
+    let messages = controllers::dump_unmapped_senders().await;
+    for message in messages {
+        ctx.say(message).await?;
+    }
     Ok(())
 }
 

@@ -5,16 +5,16 @@ use sqlx::{
     types::chrono::{DateTime, FixedOffset, Utc},
     Pool, Postgres,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Hash)]
 struct UniqueSender {
     sender_name: String,
     campaign_name: String,
 }
 
 pub async fn dump_unmapped_senders(config: &Config) -> HashMap<String, Vec<String>> {
-    let mapped_senders: Vec<UniqueSender> = config
+    let senders = config
         .campaigns
         .iter()
         .map(|(campaign_name, campaign_config)| {
@@ -29,22 +29,25 @@ pub async fn dump_unmapped_senders(config: &Config) -> HashMap<String, Vec<Strin
                 })
                 .flatten()
         })
-        .flatten()
-        .collect();
+        .flatten();
+    let mut senders_hash = HashSet::new();
+    senders.for_each(|sender| {
+        senders_hash.insert(sender);
+    });
 
     let mut unmapped_senders: Vec<UniqueSender> = vec![];
     for (campaign_name, campaign_config) in &config.campaigns {
         let path_to_log = format!("./chatlogs/{}", campaign_config.log);
 
         if campaign_config.log.starts_with("fnd_") {
-            let mut log = parse::parse_foundry_log(path_to_log.to_string(), None).await;
+            let mut log = parse::parse_foundry_log(&path_to_log, None).await;
             while let Some(post) = log.next_post().await {
                 let sender = UniqueSender {
                     sender_name: post.sender_name.clone(),
                     campaign_name: campaign_name.clone(),
                 };
                 if !unmapped_senders.contains(&sender)
-                    && !mapped_senders.contains(&sender)
+                    && !senders_hash.contains(&sender)
                     && sender.sender_name.len() > 0
                 {
                     unmapped_senders.push(sender);
@@ -53,14 +56,30 @@ pub async fn dump_unmapped_senders(config: &Config) -> HashMap<String, Vec<Strin
         }
 
         if campaign_config.log.starts_with("r20_") {
-            let mut log = parse::parse_roll20_log(path_to_log.to_string(), None).await;
+            let mut log = parse::parse_roll20_log(&path_to_log, None).await;
             while let Some(post) = log.next_post().await {
                 let sender = UniqueSender {
                     sender_name: post.sender_name.clone(),
                     campaign_name: campaign_name.clone(),
                 };
                 if !unmapped_senders.contains(&sender)
-                    && !mapped_senders.contains(&sender)
+                    && !senders_hash.contains(&sender)
+                    && sender.sender_name.len() > 0
+                {
+                    unmapped_senders.push(sender);
+                }
+            }
+        }
+
+        if campaign_config.log.starts_with("fg_") {
+            let mut log = parse::parse_fantasy_grounds_log(&path_to_log, None).await;
+            while let Some(post) = log.next_post().await {
+                let sender = UniqueSender {
+                    sender_name: post.sender_name.clone(),
+                    campaign_name: campaign_name.clone(),
+                };
+                if !unmapped_senders.contains(&sender)
+                    && !senders_hash.contains(&sender)
                     && sender.sender_name.len() > 0
                 {
                     unmapped_senders.push(sender);
