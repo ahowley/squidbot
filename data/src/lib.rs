@@ -263,7 +263,7 @@ pub async fn update_posts_from_log(
                 .expect("failed to commit transaction");
         }
     } else if filename.starts_with("fg_") {
-        let mut log = parse::parse_foundry_log(&path_to_log, timezone_offset).await;
+        let mut log = parse::parse_fantasy_grounds_log(&path_to_log, timezone_offset).await;
 
         while let Some(post) = log.next_post().await {
             if already_parsed_hash.contains(&post.id) {
