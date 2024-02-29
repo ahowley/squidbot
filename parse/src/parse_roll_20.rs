@@ -114,19 +114,36 @@ pub struct Roll20ChatLog {
     last_parsed_sender_name: Option<String>,
     last_parsed_datetime: Option<DateTime<FixedOffset>>,
     lines: Lines<BufReader<File>>,
+    #[cfg(debug_assertions)]
+    pub time_spent_parsing_div_depth: tokio::time::Duration,
+    #[cfg(debug_assertions)]
+    pub time_spent_parsing_fragments: tokio::time::Duration,
+    #[cfg(debug_assertions)]
+    pub time_spent_updating_datetime: tokio::time::Duration,
+    #[cfg(debug_assertions)]
+    pub time_spent_updating_sender: tokio::time::Duration,
 }
 
 impl Roll20ChatLog {
     fn try_update_last_parsed_sender_name(&mut self, fragment: &Html) {
-        let sender_selector = Selector::parse(".by").unwrap();
+        #[cfg(debug_assertions)]
+        let start = tokio::time::Instant::now();
 
+        let sender_selector = Selector::parse(".by").unwrap();
         if let Some(sender_elem) = fragment.select(&sender_selector).next() {
             let sender_raw = sender_elem.text().collect::<Vec<&str>>().join("");
             self.last_parsed_sender_name = Some(sender_raw.strip_suffix(":").unwrap().to_string());
         }
+
+        if cfg!(debug_assertions) {
+            self.time_spent_updating_sender += start.elapsed();
+        }
     }
 
     fn try_update_last_parsed_datetime(&mut self, fragment: &Html) {
+        #[cfg(debug_assertions)]
+        let start = tokio::time::Instant::now();
+
         let timestamp_selector = Selector::parse(".tstamp").unwrap();
 
         if let Some(timestamp_elem) = fragment.select(&timestamp_selector).next() {
@@ -144,6 +161,10 @@ impl Roll20ChatLog {
                 let offset_s = FixedOffset::east_opt(-self.timezone_offset * 3600).unwrap();
                 self.last_parsed_datetime = Some(timestamp + offset_s);
             }
+        }
+
+        if cfg!(debug_assertions) {
+            self.time_spent_updating_datetime += start.elapsed();
         }
     }
 
@@ -211,10 +232,23 @@ impl ChatLog for Roll20ChatLog {
             last_parsed_sender_name: None,
             last_parsed_datetime: None,
             lines,
+            #[cfg(debug_assertions)]
+            time_spent_parsing_div_depth: tokio::time::Duration::new(0, 0),
+            #[cfg(debug_assertions)]
+            time_spent_parsing_fragments: tokio::time::Duration::new(0, 0),
+            #[cfg(debug_assertions)]
+            time_spent_updating_datetime: tokio::time::Duration::new(0, 0),
+            #[cfg(debug_assertions)]
+            time_spent_updating_sender: tokio::time::Duration::new(0, 0),
         }
     }
 
     async fn next_post(&mut self) -> Option<Post> {
+        #[cfg(debug_assertions)]
+        let mut start_parsing_div_depth = tokio::time::Instant::now();
+        #[cfg(debug_assertions)]
+        let mut start_getting_post = tokio::time::Instant::now();
+
         let mut current_tag = String::from("");
         while let Some(line) = self.lines.next_line().await.unwrap() {
             if self.div_depth == -1 {
@@ -244,12 +278,28 @@ impl ChatLog for Roll20ChatLog {
                         current_tag.drain(..);
 
                         if self.div_depth == -1 {
+                            if cfg!(debug_assertions) {
+                                self.time_spent_parsing_div_depth +=
+                                    start_parsing_div_depth.elapsed();
+                            }
                             return None;
                         }
 
                         if self.div_depth == 0 {
+                            if cfg!(debug_assertions) {
+                                self.time_spent_parsing_div_depth +=
+                                    start_parsing_div_depth.elapsed();
+                                start_getting_post = tokio::time::Instant::now();
+                            }
+
                             let post = self.post_from_current_message_html();
                             self.current_message_html.drain(..);
+
+                            if cfg!(debug_assertions) {
+                                start_parsing_div_depth = tokio::time::Instant::now();
+                                self.time_spent_parsing_fragments += start_getting_post.elapsed();
+                            }
+
                             if post.is_some() {
                                 return post;
                             }
@@ -263,6 +313,9 @@ impl ChatLog for Roll20ChatLog {
             }
         }
 
+        if cfg!(debug_assertions) {
+            self.time_spent_parsing_div_depth += start_parsing_div_depth.elapsed();
+        }
         None
     }
 }

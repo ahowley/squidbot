@@ -245,6 +245,20 @@ pub async fn update_posts_from_log(
                 .await
                 .expect("failed to commit transaction");
         }
+
+        if cfg!(debug_assertions) {
+            println!(
+                "\
+--Time spent parsing div depth: {:#?}
+--Time spent parsing post fragments: {:#?}
+--Time spent updating timestamps: {:#?}
+--Time spent updating sender names: {:#?}",
+                log.time_spent_parsing_div_depth,
+                log.time_spent_parsing_fragments,
+                log.time_spent_updating_datetime,
+                log.time_spent_updating_sender
+            );
+        }
     } else if filename.starts_with("fg_") {
         let mut log = parse::parse_fantasy_grounds_log(&path_to_log, timezone_offset).await;
 
