@@ -3,7 +3,7 @@ use rand::seq::SliceRandom;
 use sqlx::{
     query, query_as,
     types::chrono::{DateTime, FixedOffset, Utc},
-    Pool, Postgres,
+    Pool, Postgres, Transaction,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -11,6 +11,38 @@ use std::collections::{HashMap, HashSet};
 struct UniqueSender {
     sender_name: String,
     campaign_name: String,
+}
+
+pub async fn fetch_parsed_post_ids<'a, 'tr>(
+    transaction: &'a mut Transaction<'tr, Postgres>,
+    campaign_id: i32,
+) -> HashSet<String> {
+    let already_parsed_ids_result = query!(
+        r#"SELECT post.id FROM post
+            JOIN campaign ON campaign_id = campaign.id
+        WHERE
+            campaign.id = $1"#,
+        campaign_id
+    )
+    .fetch_all(&mut **transaction)
+    .await;
+
+    let already_parsed_ids: Vec<String> = if already_parsed_ids_result.is_err() {
+        vec![]
+    } else {
+        already_parsed_ids_result
+            .unwrap()
+            .into_iter()
+            .map(|rec| rec.id)
+            .collect()
+    };
+
+    let mut already_parsed_hash = HashSet::new();
+    for id in already_parsed_ids {
+        already_parsed_hash.insert(id);
+    }
+
+    already_parsed_hash
 }
 
 pub async fn dump_unmapped_senders(config: &Config) -> HashMap<String, Vec<String>> {

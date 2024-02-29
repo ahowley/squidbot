@@ -12,3 +12,6 @@ config.json
 /chatlogs
 
 random_message_templates.json
+
+perf.data
+flamegraph.svg

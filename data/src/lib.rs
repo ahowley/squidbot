@@ -5,7 +5,7 @@ use parse::{
     ChatLog,
 };
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, Transaction};
-use std::{collections::HashSet, env};
+use std::env;
 
 mod fetch;
 mod interface;
@@ -190,29 +190,12 @@ pub async fn update_posts_from_log(
     .expect("failed to fetch campaign id")
     .id;
 
-    let already_parsed_ids_result = query!(
-        r#"SELECT post.id FROM post
-            JOIN campaign ON campaign_id = campaign.id
-        WHERE
-            campaign.id = $1"#,
-        campaign_id
-    )
-    .fetch_all(pool)
-    .await;
-
-    let already_parsed_ids: Vec<String> = if already_parsed_ids_result.is_err() {
-        vec![]
-    } else {
-        already_parsed_ids_result
-            .unwrap()
-            .into_iter()
-            .map(|rec| rec.id)
-            .collect()
-    };
-    let mut already_parsed_hash = HashSet::new();
-    for id in already_parsed_ids {
-        already_parsed_hash.insert(id);
-    }
+    let mut fetch_ids_transaction = begin_transaction(pool).await;
+    let already_parsed_hash = fetch_parsed_post_ids(&mut fetch_ids_transaction, campaign_id).await;
+    fetch_ids_transaction
+        .rollback()
+        .await
+        .expect("failed to rollback fetch transaction");
 
     let path_to_log = format!("{directory}/{filename}");
 

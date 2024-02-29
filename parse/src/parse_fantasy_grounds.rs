@@ -10,6 +10,7 @@ use tokio::{
 };
 
 const DATETIME_STRP: &'static str = "%Y-%m-%d %H:%M %z";
+const IGNORE_MESSAGES: [&'static str; 2] = ["Party taking long rest.", "Party taking short rest."];
 
 fn try_get_date_and_time_strings(fragment: &Html) -> Option<[String; 2]> {
     let anchor_selector = Selector::parse("a").unwrap();
@@ -174,6 +175,9 @@ fn sender_name_and_content_are_valid_message(sender_name: &str, content_raw: &st
         || content_raw.contains("&#62;")
         || content_raw.contains(">")
         || (content_raw.starts_with(" [") && !content_raw.starts_with(" [Translation]"))
+        || IGNORE_MESSAGES
+            .iter()
+            .any(|ignored| content_raw.contains(ignored))
     {
         return false;
     }
@@ -240,7 +244,7 @@ impl FantasyGroundsChatLog {
 
         let is_message =
             rolls.len() == 0 && sender_name_and_content_are_valid_message(sender_name, content_raw);
-        if !is_message && rolls.len() == 0 {
+        if !is_message {
             return None;
         }
 

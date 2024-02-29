@@ -107,23 +107,33 @@ pub async fn campaign_quote(
     }
 }
 
-pub async fn who_sent(message: String) -> String {
+pub async fn who_sent(message: String) -> Vec<String> {
     let pool = data::create_connection_pool("./.env").await;
+    let mut responses: Vec<String> = vec![];
 
     if let Some(results) = data::trace_message(&pool, &message).await {
         let mut response = format!("Here's everyone who sent '`{}`':\n\n", message);
-        response.push_str(
-            &results
-                .into_iter()
-                .map(|trace| format!("```{}```", trace.as_message(true, false)))
-                .collect::<Vec<String>>()
-                .join("\n"),
-        );
+        let entries = results
+            .into_iter()
+            .map(|trace| format!("```{}```", trace.as_message(true, false)))
+            .collect::<Vec<String>>();
 
-        return response;
+        for entry in entries {
+            if response.len() + entry.len() + 6 < 1800 {
+                response.push_str(&entry);
+            } else {
+                responses.push(response.clone());
+                response.drain(..);
+            }
+        }
+
+        if response.len() > 0 {
+            responses.push(response);
+        }
+        return responses;
     }
 
-    return format!("Sorry - I couldn't find '`{}`'!", message);
+    return vec![format!("Sorry - I couldn't find '`{}`'!", message)];
 }
 
 pub async fn search(message: String, limit: Option<i32>) -> String {

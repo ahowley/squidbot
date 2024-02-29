@@ -21,6 +21,18 @@ async fn is_owner_check(ctx: Context<'_>) -> Result<bool, Error> {
     check = "is_owner_check",
     category = "Utility"
 )]
+async fn byebye_bot(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("See ya.").await?;
+    ctx.framework().shard_manager.shutdown_all().await;
+    Ok(())
+}
+
+#[poise::command(
+    prefix_command,
+    hide_in_help,
+    check = "is_owner_check",
+    category = "Utility"
+)]
 async fn update_chatlogs(ctx: Context<'_>) -> Result<(), Error> {
     ctx.say("I'll get started now!").await?;
     controllers::update_chatlogs().await;
@@ -141,16 +153,20 @@ async fn whosent(
     ctx: Context<'_>,
     #[description = "The message to search for"] message: String,
 ) -> Result<(), Error> {
-    let reply = controllers::who_sent(message).await;
-    ctx.say(reply).await?;
+    let replies = controllers::who_sent(message).await;
+    for reply in replies {
+        ctx.say(reply).await?;
+    }
     Ok(())
 }
 
 /// whosent command in context menu
 #[poise::command(context_menu_command = "Who Sent")]
 pub async fn whosent_context(ctx: Context<'_>, msg: serenity::Message) -> Result<(), Error> {
-    let reply = controllers::who_sent(msg.content).await;
-    ctx.say(reply).await?;
+    let replies = controllers::who_sent(msg.content).await;
+    for reply in replies {
+        ctx.say(reply).await?;
+    }
     Ok(())
 }
 
@@ -417,8 +433,10 @@ async fn event_handler(
                 {
                     println!("Executing response to whosent reply");
                     let search_message = &replied_to.content;
-                    let reply = controllers::who_sent(search_message.clone()).await;
-                    new_message.reply(ctx, reply).await?;
+                    let replies = controllers::who_sent(search_message.clone()).await;
+                    for reply in replies {
+                        new_message.reply(ctx, reply).await?;
+                    }
                 } else if new_message.content.starts_with(".search") {
                     println!("Executing response to search reply");
                     let search_message = &replied_to.content;
@@ -452,6 +470,7 @@ async fn main() {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
+                byebye_bot(),
                 update_chatlogs(),
                 dump_unmapped_senders(),
                 message(),
