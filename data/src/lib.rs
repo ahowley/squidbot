@@ -190,8 +190,8 @@ pub async fn update_posts_from_log(
     .expect("failed to fetch campaign id")
     .id;
 
-    let mut fetch_ids_transaction = begin_transaction(pool).await;
-    let already_parsed_hash = fetch_parsed_post_ids(&mut fetch_ids_transaction, campaign_id).await;
+    let fetch_ids_transaction = begin_transaction(pool).await;
+    // let already_parsed_hash = fetch_parsed_post_ids(&mut fetch_ids_transaction, campaign_id).await;
     fetch_ids_transaction
         .rollback()
         .await
@@ -203,9 +203,9 @@ pub async fn update_posts_from_log(
         let mut log = parse::parse_foundry_log(&path_to_log, timezone_offset).await;
 
         while let Some(post) = log.next_post().await {
-            if already_parsed_hash.contains(&post.id) {
-                continue;
-            }
+            // if already_parsed_hash.contains(&post.id) {
+            //     continue;
+            // }
 
             let transaction = begin_transaction(&pool).await;
 
@@ -226,9 +226,9 @@ pub async fn update_posts_from_log(
         let mut log = parse::parse_roll20_log(&path_to_log, timezone_offset).await;
 
         while let Some(post) = log.next_post().await {
-            if already_parsed_hash.contains(&post.id) {
-                continue;
-            }
+            // if already_parsed_hash.contains(&post.id) {
+            //     continue;
+            // }
 
             let transaction = begin_transaction(&pool).await;
 
@@ -249,9 +249,9 @@ pub async fn update_posts_from_log(
         let mut log = parse::parse_fantasy_grounds_log(&path_to_log, timezone_offset).await;
 
         while let Some(post) = log.next_post().await {
-            if already_parsed_hash.contains(&post.id) {
-                continue;
-            }
+            // if already_parsed_hash.contains(&post.id) {
+            //     continue;
+            // }
 
             let transaction = begin_transaction(&pool).await;
 

@@ -119,7 +119,6 @@ pub struct Roll20ChatLog {
 impl Roll20ChatLog {
     fn try_update_last_parsed_sender_name(&mut self, fragment: &Html) {
         let sender_selector = Selector::parse(".by").unwrap();
-
         if let Some(sender_elem) = fragment.select(&sender_selector).next() {
             let sender_raw = sender_elem.text().collect::<Vec<&str>>().join("");
             self.last_parsed_sender_name = Some(sender_raw.strip_suffix(":").unwrap().to_string());
@@ -224,9 +223,18 @@ impl ChatLog for Roll20ChatLog {
 
             self.current_message_html.push_str(line.as_str());
 
+            let is_title_line = line.trim().starts_with("title=");
+            let mut has_ignored_title_grapheme = false;
+
             for grapheme in line.graphemes(true) {
                 if current_tag != "" {
                     if grapheme == "<" {
+                        // this if statement is an awful hack to avoid a proper solution for quoted
+                        // brackets
+                        if is_title_line && !has_ignored_title_grapheme {
+                            has_ignored_title_grapheme = true;
+                            continue;
+                        }
                         current_tag.push_str(grapheme);
                     } else if grapheme == ">" {
                         let opening_count = current_tag.chars().filter(|ch| *ch == '<').count();
@@ -250,6 +258,7 @@ impl ChatLog for Roll20ChatLog {
                         if self.div_depth == 0 {
                             let post = self.post_from_current_message_html();
                             self.current_message_html.drain(..);
+
                             if post.is_some() {
                                 return post;
                             }

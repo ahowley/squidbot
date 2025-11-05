@@ -1,0 +1,23 @@
+volumes:
+  squid_volume:
+    name: squid_volume
+
+services:
+  db:
+    image: postgres
+    restart: always
+    container_name: $dbcontainername
+    user: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=squidbot
+      - POSTGRES_PASSWORD=squid
+    ports:
+      - "5434:5432"
+    volumes:
+      - squid_volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
