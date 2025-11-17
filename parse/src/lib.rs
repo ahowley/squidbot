@@ -99,7 +99,7 @@ pub async fn parse_config(path_to_config: String) -> Config {
         .expect("failed to parse config.json - see README or config.example.json for help")
 }
 
-pub async fn parse_foundry_log(path_to_log: &str, timezone_offset: Option<i32>) -> impl ChatLog {
+pub async fn parse_foundry_log(path_to_log: &str, timezone_offset: Option<i32>) -> FoundryChatLog {
     let path = Path::new(path_to_log);
     let file = validate_and_open_file(path, Some("fnd_"), None, Some("db"))
         .await
@@ -110,7 +110,7 @@ pub async fn parse_foundry_log(path_to_log: &str, timezone_offset: Option<i32>) 
     FoundryChatLog::new(file, timezone_offset).await
 }
 
-pub async fn parse_roll20_log(path_to_log: &str, timezone_offset: Option<i32>) -> impl ChatLog {
+pub async fn parse_roll20_log(path_to_log: &str, timezone_offset: Option<i32>) -> Roll20ChatLog {
     let path = Path::new(path_to_log);
     let file = validate_and_open_file(path, Some("r20_"), None, Some("html"))
         .await
@@ -124,7 +124,7 @@ pub async fn parse_roll20_log(path_to_log: &str, timezone_offset: Option<i32>) -
 pub async fn parse_fantasy_grounds_log(
     path_to_log: &str,
     timezone_offset: Option<i32>,
-) -> impl ChatLog {
+) -> FantasyGroundsChatLog {
     let path = Path::new(path_to_log);
     let file = validate_and_open_file(path, Some("fg_"), None, Some("html"))
         .await
