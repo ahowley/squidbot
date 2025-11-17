@@ -1,5 +1,6 @@
 use parse::Post;
 use sqlx::{query, Postgres};
+use uuid::Uuid;
 
 pub struct PostInterface<'a> {
     pub transaction: sqlx::Transaction<'a, Postgres>,
@@ -17,18 +18,28 @@ impl<'a> PostInterface<'a> {
         .await?
         .id;
 
-        let id = query!(
-            r#"INSERT INTO post (id, campaign_id, sender_id, timestamp_sent)
-            VALUES ( $1, $2, $3, $4 )
-            RETURNING id"#,
-            self.post.id,
-            self.campaign_id,
-            sender_id,
-            self.post.datetime,
-        )
-        .fetch_one(&mut *self.transaction)
-        .await?
-        .id;
+        // let insert_id = if self.post.is_message {
+        //     format!("{}{}", "mes_", self.post.id)
+        // } else if self.post.rolls.len() > 0 {
+        //     format!("{}{}", "rol_", self.post.id)
+        // } else {
+        //     format!("{}{}", "gen_", self.post.id)
+        // };
+        let insert_id = Uuid::new_v4().to_string();
+
+        let id =
+            query!(
+                r#"INSERT INTO post (id, campaign_id, sender_id, timestamp_sent)
+                VALUES ( $1, $2, $3, $4 )
+                RETURNING id"#,
+                insert_id,
+                self.campaign_id,
+                sender_id,
+                self.post.datetime,
+            )
+            .fetch_one(&mut *self.transaction)
+            .await?
+            .id;
 
         if self.post.is_message {
             query!(
